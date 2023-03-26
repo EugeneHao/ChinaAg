@@ -22,7 +22,7 @@ get_df <- function(geodf)
 
 chn %>% transmute(ID = GID_1, points = geometry, name = NAME_1) %>% 
   split(.$ID) %>% purrr::map(function(x) get_df(x)) %>% 
-  do.call(rbind, .) %>% 
+  do.call(rbind, .) %>% # left_join(., xxx) %>%
   ggplot(aes(x = long, y = lat, group = group, fill = district)) + geom_polygon() + 
   scale_y_continuous(n.breaks = 5)  + theme_bw() + theme(legend.position = "none")
 

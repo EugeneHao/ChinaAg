@@ -1,0 +1,36 @@
+---
+title: "01 Ag"
+author: "Xiaolan"
+date: "2023-01-30"
+output: pdf_document
+---
+
+### Price of corn, soybean, and rice, 2000-2020
+```{r}
+library(tidyverse)
+dta_p <- read_excel("~/Desktop/2021 Fall/Project/2.Agricultural Product/Data/price_Jan17.xls")
+dta_p <- dta_p[,-1]
+dta_p$value <- as.numeric(dta_p$value)
+wide_p<- pivot_wider(dta_p, names_from = index, values_from = value)
+
+riceandcorn <- dta_p[dta_p$index=="cornp"|dta_p$index=="ricep",]
+riceandcorn
+
+#plot(x = riceandcorn$time, y = riceandcorn$value,  pch = riceandcorn$index)
+#lines(x = riceandcorn$time, y = riceandcorn$value, col = "red")
+
+
+ggplot(data = riceandcorn, aes(y = value, x = time, group = index, color = index, shape = index)) + 
+  geom_point()+
+  geom_line()+
+  theme(axis.text.x = element_text(angle=45, vjust=1, hjust=1))+
+  #xlab("Year") + ylab("Price")+
+  theme_bw()
+
+
+ggplot(data = riceandcorn, aes(y = value, time)) + 
+  geom_point()+
+  geom_line()
+  
+```
+
