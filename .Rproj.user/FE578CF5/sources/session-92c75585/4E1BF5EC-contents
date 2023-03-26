@@ -204,6 +204,7 @@ dta_pre <- raw_dat %>%
   mutate_if(is.numeric, ~round(., 2))
 
 write_xlsx(dta_pre, "mypredata.xlsx")
+write_xlsx(dta_pre, "month_avg.xlsx")
 
 lm(data = dta_pre,share ~ ex_price + cost + `subsidy/mu` + yield_mu + crop ) %>% summary()
 
