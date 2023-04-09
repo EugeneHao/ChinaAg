@@ -51,6 +51,7 @@ month_avg <- d6 %>%
   group_by(year_month = format(`截止日期_EndDt`, "%Y-%m"), `品种代码()_OptCd`) %>%
   summarize(avg_value = mean(`结算价(元/吨)_SetPr`)) #monthly average
 
+
 march_avg <- month_avg %>% 
   mutate(time = year_month) %>% 
   separate(year_month, into = c("year", "month"), sep = "-") %>% 
@@ -198,22 +199,24 @@ raw_dat <- raw_hei %>%
          ex_pro_acre4 = ((ex_price- cost_lag1)*yield_mu+`subsidy/mu`)* acre/7,
          ps_pro_acre = pro_actual_lag1 * acre/7)
 
-#save the data
-dta_pre <- raw_dat %>% 
-  select(c("crop","year","share","ex_pro_acre","ex_pro_acre3","ps_pro_acre","ex_price","price","cost",`subsidy/mu`,"yield_mu")) %>% 
-  mutate_if(is.numeric, ~round(., 2))
-
-write_xlsx(dta_pre, "mypredata.xlsx")
-write_xlsx(dta_pre, "month_avg.xlsx")
-
-lm(data = dta_pre,share ~ ex_price + cost + `subsidy/mu` + yield_mu + crop ) %>% summary()
-
-
-
 names(hei_acre) <- c("crop", "region","year", "value","share","total_crop")
 hei_acre$crop <- as.character(hei_acre$crop)
 
 raw_dat<- raw_dat %>% left_join(hei_acre, by = c("crop","year")) 
+
+
+#save the data
+dta_pre <- raw_dat %>% 
+  select(c("crop","code","year","share","ex_price","price","cost",`subsidy/mu`,"yield_mu")) %>% 
+  mutate_if(is.numeric, ~round(., 2))
+
+write_xlsx(dta_pre, "mypredata.xlsx")
+write_xlsx(month_avg, "month_avg.xlsx")
+
+lm(data = dta_pre, share ~ ex_price + cost + `subsidy/mu` + yield_mu + crop ) %>% summary()
+
+
+
 
 ###expected profits，Future price, lagged cost and yield, current subsidy
 ggplot(data = raw_dat, aes(y = ex_pro_acre, x = year, group = crop, color = crop, linetype = crop,shape = crop)) + 
@@ -353,4 +356,8 @@ ggplot(data) +
   ) +
   labs(color = "Variable", x = "X") +
   theme_minimal()
+
+
+
+
 

@@ -341,7 +341,8 @@ hei_acre_p$type <- factor(hei_acre_p$type, levels = c("wheat","soybean","rice","
  ggplot(data = hei_acre_p, aes(x = year, y = share*100, group = type, color = type))+
   geom_point()+
   geom_line(size = 1.2)+
-  scale_x_continuous(breaks=seq(2001,2021,2))+
+  scale_x_continuous(breaks=seq(2001,2021,1))+
+   theme(axis.text.x = element_text(angle = 45, hjust = 1))+
   labs(x = "Year", y = "Share (%)", title = "Acreage Share in Heilongjiang")+
   scale_color_manual(name = "", values = c("purple","#009E73","#56B4E9","#E69F00","grey"),
                      labels = c("Wheat","Soybean","Rice","Corn","Other"))

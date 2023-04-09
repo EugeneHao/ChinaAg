@@ -268,6 +268,8 @@ dta_plot <- midcb %>% left_join(april_avg_11, key = "code") %>%
   left_join(april_avg, key ="code") %>% 
   mutate(price_sep = `price/ton/sep`/1000) 
 
+
+
 #actual profit
 actual_profit <- ggplot(data = dta_plot, aes(y = (price-cost)/7*`yield_acre`  , x = year, group = crop, color = crop, linetype = crop,shape = crop)) + 
   geom_point(size = 2.5)+
@@ -321,6 +323,7 @@ fig_expprofit_nov <- ggplot(data = dta_plot, aes(y = (price_nov-cost)/7*`yield/m
   scale_color_manual(name = "", values = c("#E69F00","#56B4E9", "#009E73","purple"), labels = c("Corn","Rice","Soybean","Wheat"))
 
 ggsave("Figure/fig_expprofit_nov.png",width = 8, height = 4)
+
 ###subsidy
 
 
