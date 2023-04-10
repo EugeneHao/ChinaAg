@@ -1,3 +1,5 @@
+# focus on Heilongjiang
+
 library(tidyverse)
 rawdat <- readxl::read_xlsx("rawdata/mypredata.xlsx")
 
