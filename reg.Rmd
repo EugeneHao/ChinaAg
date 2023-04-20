@@ -1,0 +1,407 @@
+---
+title: "Regression result April 15"
+author: "Xiaolan"
+date: "4/15/2023"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+### Preparation {-}
+
+```{r echo = F, include=FALSE}
+# use OLS regression 
+
+library(tidyverse)
+library(stargazer)
+
+regdat <- readRDS("~/Documents/GitHub/ChinaAg/From Hao/data/dongbei/regdat.rds")  %>% 
+  mutate(ex_revenue = yield_lag * ex_price + subsidy_lag, 
+         tcost = yield_lag * cost,
+         rcratio = (yield_lag * ex_price + subsidy_lag)/(yield_lag * cost)) %>% 
+  filter(region == "Neimenggu"|region == "Heilongjiang"|region == "Jilin"|region =="Liaoning")
+
+preddat <- readRDS("~/Documents/GitHub/ChinaAg/From Hao/data/dongbei/preddat.rds") %>% 
+  mutate(ex_revenue = yield_lag * ex_price + subsidy_lag,
+         tcost = yield_lag * cost,
+         rcratio = (yield_lag * ex_price + subsidy_lag)/(yield_lag * cost)) %>% 
+  filter(region == "Neimenggu"|region == "Heilongjiang"|region == "Jilin"|region =="Liaoning")
+
+# true share: 
+share_true <- preddat$share %>% matrix(., nrow = 4)
+
+
+# add expected profit for each crop 
+regdat <- regdat %>% 
+  mutate(pfex_corn = regdat %>% filter(crop == "corn") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 20) %>% # "+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_rice = regdat %>% filter(crop == "rice") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 20) %>% # "+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_soy = regdat %>% filter(crop == "soybean") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 20) %>% # "+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_wheat = regdat %>% filter(crop == "wheat") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 20) %>% # "+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(),
+         revex_corn = regdat %>% filter(crop == "corn") %>% "$"(ex_revenue) %>% 
+           matrix(., nrow = 20) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         revex_rice = regdat %>% filter(crop == "rice") %>% "$"(ex_revenue) %>% 
+           matrix(., nrow = 20) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(),
+         revex_soy = regdat %>% filter(crop == "soybean") %>% "$"(ex_revenue) %>% 
+           matrix(., nrow = 20) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         revex_wheat = regdat %>% filter(crop == "wheat") %>% "$"(ex_revenue) %>% 
+           matrix(., nrow = 20) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(),
+         tcost_corn = regdat %>% filter(crop == "corn") %>% "$"(tcost) %>% 
+           matrix(., nrow = 20) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         tcost_rice = regdat %>% filter(crop == "rice") %>% "$"(tcost) %>% 
+           matrix(., nrow = 20) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(),
+         tcost_soy = regdat %>% filter(crop == "soybean") %>% "$"(tcost) %>% 
+           matrix(., nrow = 20) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         tcost_wheat = regdat %>% filter(crop == "wheat") %>% "$"(tcost) %>% 
+           matrix(., nrow = 20) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector())%>% 
+  mutate(rr_corn = revex_corn/revex_wheat, 
+         rr_rice = revex_rice/revex_wheat,
+         rr_soy = revex_soy/revex_wheat,
+         rc_corn = tcost_corn/tcost_wheat, 
+         rc_rice = tcost_rice/tcost_wheat,
+         rc_soy = tcost_soy/tcost_wheat)
+
+
+# same for the predicted data 
+preddat <- preddat %>% 
+  mutate(pfex_corn = preddat %>% filter(crop == "corn") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 1) %>% # "+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_rice = preddat %>% filter(crop == "rice") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 1) %>% # "+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_soy = preddat %>% filter(crop == "soybean") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 1) %>% #"+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_wheat = preddat %>% filter(crop == "wheat") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 1) %>% #"+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(),
+         revex_corn = preddat %>% filter(crop == "corn") %>% "$"(ex_revenue) %>% 
+           matrix(., nrow = 1) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         revex_rice = preddat %>% filter(crop == "rice") %>% "$"(ex_revenue) %>% 
+           matrix(., nrow = 1) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(),
+         revex_soy = preddat %>% filter(crop == "soybean") %>% "$"(ex_revenue) %>% 
+           matrix(., nrow = 1) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         revex_wheat = preddat %>% filter(crop == "wheat") %>% "$"(ex_revenue) %>% 
+           matrix(., nrow = 1) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(),
+         tcost_corn = preddat %>% filter(crop == "corn") %>% "$"(tcost) %>% 
+           matrix(., nrow = 1) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         tcost_rice = preddat %>% filter(crop == "rice") %>% "$"(tcost) %>% 
+           matrix(., nrow = 1) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(),
+         tcost_soy = preddat %>% filter(crop == "soybean") %>% "$"(tcost) %>% 
+           matrix(., nrow = 1) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         tcost_wheat = preddat %>% filter(crop == "wheat") %>% "$"(tcost) %>% 
+           matrix(., nrow = 1) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector()) %>% 
+  mutate(rr_corn = revex_corn/revex_wheat, 
+         rr_rice = revex_rice/revex_wheat,
+         rr_soy = revex_soy/revex_wheat,
+         rc_corn = tcost_corn/tcost_wheat, 
+         rc_rice = tcost_rice/tcost_wheat,
+         rc_soy = tcost_soy/tcost_wheat)
+```
+
+
+
+The true share for provinces in 2021 are 
+
+```{r}
+share_true %>% data.frame() %>% "colnames<-"(unique(regdat$region)) %>% 
+  "rownames<-"(unique(regdat$crop)) %>% pander::pander() 
+```
+
+The **expected profit** of crop $i$ in province $j$ and year $t$ is defined as 
+
+$$
+E\pi_{ijt} =  \tilde{y}_{ijt} (\tilde{p}_{it} - c_{ijt} )+ \tilde{d}_{ijt}
+$$
+
+where: 
+
++ $\tilde{p}_{it}$: future price (yuan per kilogram) averaged in March for Novermber delivery in year $t$
++ $c_{ijt}$: the realized cost (yuan per kilogram) of crop $i$ in province $j$ and year $t$
++ $\tilde{y}_{ijt}$: the yield (kilogram per mu) of crop $i$ in province $j$ averaged in the past three years, $\{t-3, t-2, t-1\}$. 
++ $\tilde{d}_{ijt}$: the expected subsidy (yuan per mu) of crop $i$ in province $j$ weighted for the past two years, with $\tilde{d}_{ijt} = 0.67 * d_{ij,t-1} + 0.33 * d_{ij, t-2}$
+
+The **realized profit** of crop $i$ in province $j$ and year $t$ is defined as
+
+$$
+\pi_{ijt} = y_{ijt}(p_{ijt} - c_{ijt} )  + d_{ijt}
+$$
+where $p_{ijt}$ is the realized price (yuan per kilogram) for crop $i$ in province $j$ and year $t$. 
+
+
+Thus, the expected revenue of crop $i$ in province $j$ and year $t$ is 
+
+$$
+Er_{ijt} =  \tilde{y}_{ijt} \tilde p_{it} + \tilde{d}_{ijt} = E\pi_{ijt} + \tilde{y}_{ijt} c_{ijt}
+$$
+
+We define the relative revenue of crop $i$ to a baseline crop wheat as:
+
+$$
+rr_{ijt} = r_{ijt}/r_{4jt}
+$$
+
+### OLS regression {-}
+
+Suppose $s_{ijt}$ is the share of cropland area for crop $i$ in province $j$ and year $t$. Let $s_{0jt} = 1 - \sum_{i=1}^4 s_{ijt}$. 
+
+We define $z_{ijt} = \log(s_{ijt}/s_{0jt})$ as the dependent variable. 
+
+#### Model 1 : Use expected profit as explanatory variable {-}
+
+$$
+z_{ijt} = \beta_{i0} + \sum_{k=1}^4 E\pi_{kjt}\beta_{ik}+ u_{j} + \epsilon_{ijt}
+$$
+where 
+
++ $u_j$: fixed effect for province $j$. 
++ $\epsilon_{ijt}$: random error, assumed i.i.d. with normal distribution 
+
+
+#### Model 2 : Use expected revenue {-}
+
+$$
+z_{ijt} = \beta_{i0} + \sum_{k=1}^4 Er_{kjt}\beta_{ik}+ u_{j} + \epsilon_{ijt}
+$$
+
+
+#### Model 3: Use expected relative revenue {-}
+
+$$
+z_{ijt} = \beta_{i0} + \sum_{k=1}^3 Err_{kjt}\beta_{ik}+ u_{j} + \epsilon_{ijt}
+$$
+Some figures: 
+
+(1) Expected profit against acreage share for corn: 
+
+```{r}
+ggplot(aes(x = pfex_corn, y = share), data = regdat %>% filter(crop == "corn")) + geom_point() +
+  geom_smooth(method = "lm") + 
+  facet_wrap(~region, nrow = 2, scales = "free_y")+
+  labs(x = "expected profit for corn", y = "acreage share")
+```
+
+(2) Expected revenue against acreage share: 
+
+```{r}
+ggplot(aes(x = revex_corn, y = share), data = regdat %>% filter(crop == "corn")) + geom_point() +
+  geom_smooth(method = "lm") + 
+  facet_wrap(~region, nrow = 2, scales = "free_y")+
+  labs(x = "expected revenue for corn", y = "acreage share")
+```
+
+(3) Logriathm of expected revenue against acreage share: 
+
+```{r}
+ggplot(aes(x = revex_corn, y = log(share)), data = regdat %>% filter(crop == "corn")) + geom_point() +
+  geom_smooth(method = "lm") + 
+  facet_wrap(~region, nrow = 2, scales = "free_y")+
+  labs(x = "Logriathm of expected revenue", y = "acreage share")
+```
+
+
+
+
+```{r echo=FALSE, include=FALSE}
+## Logriathm of expected revenue against share for rice: 
+ggplot(aes(x = revex_rice, y = log(share)), data = regdat %>% filter(crop == "rice")) + geom_point() +
+  geom_smooth(method = "lm") + 
+  facet_wrap(~region, nrow = 2, scales = "free")
+
+## Logriathm of expected revenue against share for soybean: 
+ggplot(aes(x = revex_soy, y = log(share)), data = regdat %>% filter(crop == "soybean")) + geom_point() +
+  geom_smooth(method = "lm") + 
+  facet_wrap(~region, nrow = 2, scales = "free")
+
+## Logriathm of expected revenue against share for soybean: 
+ggplot(aes(x = revex_wheat, y = log(share)), data = regdat %>% filter(crop == "wheat")) + geom_point() +
+  geom_smooth(method = "lm") + 
+  facet_wrap(~region, nrow = 2, scales = "free")
+```
+
+
+
+
+```{r echo=FALSE, include=FALSE}
+#### Try the two basic models {-}
+lm_corn <- lm(y ~ 0 + pfex_corn + region,
+              data = regdat %>% filter(crop == "corn"))
+summary(lm_corn)
+
+
+lm_corn <- lm(y ~ 0 + revex_corn + region,
+              data = regdat %>% filter(crop == "corn"))
+summary(lm_corn)
+```
+
+
+
+#### Model 1 Regression {-}
+
+```{r}
+lm_corn_pf <- lm(y ~ 0 + pfex_corn + pfex_rice + pfex_soy + pfex_wheat + region,
+              data = regdat %>% filter(crop == "corn"))
+
+lm_rice_pf <- lm(y ~ 0 + pfex_corn + pfex_rice + pfex_soy + pfex_wheat + region,
+              data = regdat %>% filter(crop == "rice"))
+
+lm_soy_pf <- lm(y ~ 0 + pfex_corn + pfex_rice + pfex_soy + pfex_wheat + region,
+              data = regdat %>% filter(crop == "soybean"))
+
+lm_wheat_pf <- lm(y ~ 0 + pfex_corn + pfex_rice + pfex_soy + pfex_wheat + region,
+              data = regdat %>% filter(crop == "wheat"))
+#summary(lm_corn_pf)
+#summary(lm_rice_pf)
+#summary(lm_soy_pf)
+#summary(lm_wheat_pf)
+stargazer(lm_corn_pf, lm_rice_pf, lm_soy_pf, lm_wheat_pf, title = "Model 1 Results",column.labels = c("Corn", "Rice", "Soybean", "Wheat"), type = "text", digit = 3, dep.var.caption  = "")
+```
+
+
+#### Model 2 Regression {-}
+
+```{r}
+lm_corn_rev <- lm(y ~ 0 + revex_corn + revex_rice + revex_soy + revex_wheat  + region,
+              data = regdat %>% filter(crop == "corn"))
+
+lm_rice_rev <- lm(y ~ 0 + revex_corn + revex_rice + revex_soy + revex_wheat + region,
+              data = regdat %>% filter(crop == "rice"))
+
+lm_soy_rev <- lm(y ~ 0 + revex_corn + revex_rice + revex_soy + revex_wheat  + region,
+              data = regdat %>% filter(crop == "soybean"))
+
+lm_wheat_rev <- lm(y ~ 0 + revex_corn + revex_rice + revex_soy + revex_wheat  + region,
+              data = regdat %>% filter(crop == "wheat"))
+
+stargazer(lm_corn_rev, lm_rice_rev, lm_soy_rev, lm_wheat_rev, title = "Model 2 Results",column.labels = c("Corn", "Rice", "Soybean", "Wheat"), type = "text", digit = 3, dep.var.caption  = "")
+
+#summary(lm_corn_rev)
+#summary(lm_rice_rev)
+#summary(lm_soy_rev)
+#summary(lm_wheat_rev)
+```
+
+#### Model 3 Regression {-} 
+
+```{r}
+lm_corn_rr <- lm(y ~ 0 + rr_corn + rr_rice + rr_soy + region, # rc_corn + rc_rice + rc_soy + 
+              data = regdat %>% filter(crop == "corn"))
+
+lm_rice_rr <- lm(y ~ 0 + rr_corn + rr_rice + rr_soy + region,
+              data = regdat %>% filter(crop == "rice"))
+
+lm_soy_rr <- lm(y ~ 0 +  rr_corn + rr_rice + rr_soy +  region,
+              data = regdat %>% filter(crop == "soybean"))
+
+lm_wheat_rr <- lm(y ~ 0 +  rr_corn + rr_rice + rr_soy +  region,
+              data = regdat %>% filter(crop == "wheat"))
+
+stargazer(lm_corn_rr, lm_rice_rr, lm_soy_rr, lm_wheat_rr, title = "Model 3 Results",column.labels = c("Corn", "Rice", "Soybean", "Wheat"), type = "text", digit = 3, dep.var.caption  = "")
+
+#summary(lm_corn_rr)
+#summary(lm_rice_rr)
+#summary(lm_soy_rr)
+#summary(lm_wheat_rr)
+```
+
+
+#### Prediction Results {-}
+
+```{r echo = F}
+pd_corn_pf <- predict(lm_corn_pf, newdata = preddat %>% filter(crop == "corn"))
+pd_rice_pf <- predict(lm_rice_pf, newdata = preddat %>% filter(crop == "rice"))
+pd_soy_pf <- predict(lm_soy_pf, newdata = preddat %>% filter(crop == "soybean"))
+pd_wheat_pf <- predict(lm_wheat_pf, newdata = preddat %>% filter(crop == "wheat"))
+
+y_pred_pf <- rbind(pd_corn_pf, pd_rice_pf, pd_soy_pf, pd_wheat_pf)
+
+share_est_pf <- round(sweep(exp(y_pred_pf), MARGIN = 2, FUN = "/", STATS = colSums(exp(y_pred_pf)) + 1) * 100, 2)
+
+
+pd_corn_rev <- predict(lm_corn_rev, newdata = preddat %>% filter(crop == "corn"))
+pd_rice_rev <- predict(lm_rice_rev, newdata = preddat %>% filter(crop == "rice"))
+pd_soy_rev <- predict(lm_soy_rev, newdata = preddat %>% filter(crop == "soybean"))
+pd_wheat_rev <- predict(lm_wheat_rev, newdata = preddat %>% filter(crop == "wheat"))
+
+y_pred_rev <- rbind(pd_corn_rev, pd_rice_rev, pd_soy_rev, pd_wheat_rev)
+
+share_est_rev <- round(sweep(exp(y_pred_rev), MARGIN = 2, FUN = "/", STATS = colSums(exp(y_pred_rev)) + 1) * 100, 2)
+
+
+
+pd_corn_rr<- predict(lm_corn_rr, newdata = preddat %>% filter(crop == "corn"))
+pd_rice_rr <- predict(lm_rice_rr, newdata = preddat %>% filter(crop == "rice"))
+pd_soy_rr <- predict(lm_soy_rr, newdata = preddat %>% filter(crop == "soybean"))
+pd_wheat_rr <- predict(lm_wheat_rr, newdata = preddat %>% filter(crop == "wheat"))
+
+y_pred_rr <- rbind(pd_corn_rr, pd_rice_rr, pd_soy_rr, pd_wheat_rr)
+
+share_est_rr <- round(sweep(exp(y_pred_rr), MARGIN = 2, FUN = "/", STATS = colSums(exp(y_pred_rr)) + 1) * 100, 2)
+
+```
+
+True Result in 2021
+
+```{r}
+share_true %>% data.frame() %>% "colnames<-"(unique(regdat$region)) %>% 
+  "rownames<-"(unique(regdat$crop)) %>% pander::pander() 
+```
+
+Model 1 Prediction
+
+```{r}
+share_est_pf %>% data.frame() %>% "colnames<-"(unique(regdat$region)) %>% 
+  "rownames<-"(unique(regdat$crop)) %>% pander::pander() 
+```
+
+Model 2 Prediction
+
+```{r}
+share_est_rev %>% data.frame() %>% "colnames<-"(unique(regdat$region)) %>% 
+  "rownames<-"(unique(regdat$crop)) %>% pander::pander() 
+```
+
+Model 3 Prediction
+
+```{r}
+share_est_rr %>% data.frame() %>% "colnames<-"(unique(regdat$region)) %>% 
+  "rownames<-"(unique(regdat$crop)) %>% pander::pander() 
+```
+
+#### MSE Results {-}
+
+```{r}
+MSE1 <- rowMeans((share_true - share_est_pf)^2)
+MSE2 <- rowMeans((share_true - share_est_rev)^2)
+MSE3 <- rowMeans((share_true - share_est_rr)^2)
+
+cbind(MSE1, MSE2, MSE3) %>% "colnames<-"(paste0("Model", 1:3)) %>% 
+  "rownames<-"(unique(regdat$crop)) %>% pander::pander() 
+```
+
+
+
