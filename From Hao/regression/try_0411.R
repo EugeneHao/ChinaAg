@@ -1,4 +1,4 @@
-multidat <- readRDS("From Hao/data/dongbei/multidat_nolag.rds") %>% 
+multidat <- readRDS("From Hao/data/dongbei/multidat_nolag_V2.rds") %>% 
   arrange(region, crop)
 
 library(tidyverse)
@@ -49,6 +49,12 @@ preddat <- regdat %>% filter(year == 2021)
 # remove year 2021 from regdat
 
 regdat <- regdat %>% filter(year < 2021)
+
+saveRDS(regdat, "From Hao/data/dongbei/regdat_V2.rds")
+saveRDS(preddat, "From Hao/data/dongbei/preddat_V2.rds")
+
+
+### TRY SUR-HEAR #### 
 
 # (1.2) OLS for each crop to get residuals 
 # use: profit_ex, profit_true_lag, subsidy_lag, ex_price, yield_lag as covarites 
