@@ -1,0 +1,217 @@
+---
+title: "Prepare meeting 0503"
+author: "Hao Sun"
+date: "5/2/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# prepare for meeting on 05/03
+
+library(tidyverse)
+
+regdat <- readRDS("/Users/sunhao/Documents/GitHub/ChinaAg/From Hao/data/dongbei/regdat_V2.rds") %>% 
+  mutate(ex_revenue = yield_lag * ex_price + subsidy_lag, 
+         tcost = yield_lag * cost,
+         rcratio = (yield_lag * ex_price + subsidy_lag)/(yield_lag * cost)) 
+
+regdat <- regdat %>% 
+  mutate(share_wheat = regdat %>% filter(crop == "wheat") %>% "$"(share) %>% 
+           matrix(., nrow = 20) %>% # "+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector()) %>% 
+  mutate(y2 = log(share/(other + share_wheat)))   # get new y2 since now we combine other and wheat
+
+preddat <- readRDS("/Users/sunhao/Documents/GitHub/ChinaAg/From Hao/data/dongbei/preddat_V2.rds") %>% 
+  mutate(ex_revenue = yield_lag * ex_price + subsidy_lag,
+         tcost = yield_lag * cost,
+         rcratio = (yield_lag * ex_price + subsidy_lag)/(yield_lag * cost)) 
+
+preddat <- preddat %>% 
+  mutate(share_wheat = preddat %>% filter(crop == "wheat") %>% "$"(share) %>% 
+           matrix(., nrow = 1) %>% # "+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector()) %>% 
+  mutate(y2 = log(share/(other + share_wheat))) 
+
+# true share: 
+share_true <- preddat$share %>% matrix(., nrow = 4) %>% "["(-4,)
+
+
+# add expected profit for each crop 
+regdat <- regdat %>% 
+  mutate(pfex_corn = regdat %>% filter(crop == "corn") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 20) %>% # "+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_rice = regdat %>% filter(crop == "rice") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 20) %>% # "+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_soy = regdat %>% filter(crop == "soybean") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 20) %>% # "+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_wheat = regdat %>% filter(crop == "wheat") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 20) %>% # "+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(),
+         
+         pftr_corn = regdat %>% filter(crop == "corn") %>% "$"(profit_true_lag) %>% 
+           matrix(., nrow = 20) %>% # "+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         pftr_rice = regdat %>% filter(crop == "rice") %>% "$"(profit_true_lag) %>% 
+           matrix(., nrow = 20) %>% # "+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         pftr_soy = regdat %>% filter(crop == "soybean") %>% "$"(profit_true_lag) %>% 
+           matrix(., nrow = 20) %>% # "+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         pftr_wheat = regdat %>% filter(crop == "wheat") %>% "$"(profit_true_lag) %>% 
+           matrix(., nrow = 20) %>% # "+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(),
+         
+         revex_corn = regdat %>% filter(crop == "corn") %>% "$"(ex_revenue) %>% 
+           matrix(., nrow = 20) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         revex_rice = regdat %>% filter(crop == "rice") %>% "$"(ex_revenue) %>% 
+           matrix(., nrow = 20) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(),
+         revex_soy = regdat %>% filter(crop == "soybean") %>% "$"(ex_revenue) %>% 
+           matrix(., nrow = 20) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         revex_wheat = regdat %>% filter(crop == "wheat") %>% "$"(ex_revenue) %>% 
+           matrix(., nrow = 20) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(),
+         
+         tcost_corn = regdat %>% filter(crop == "corn") %>% "$"(tcost) %>% 
+           matrix(., nrow = 20) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         tcost_rice = regdat %>% filter(crop == "rice") %>% "$"(tcost) %>% 
+           matrix(., nrow = 20) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(),
+         tcost_soy = regdat %>% filter(crop == "soybean") %>% "$"(tcost) %>% 
+           matrix(., nrow = 20) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         tcost_wheat = regdat %>% filter(crop == "wheat") %>% "$"(tcost) %>% 
+           matrix(., nrow = 20) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector())%>% 
+  mutate(rr_corn = revex_corn/revex_soy, 
+         rr_rice = revex_rice/revex_soy,
+         rc_corn = tcost_corn/tcost_soy, 
+         rc_rice = tcost_rice/tcost_soy)
+
+
+# same for the predicted data 
+preddat <- preddat %>% 
+  mutate(pfex_corn = preddat %>% filter(crop == "corn") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 1) %>% # "+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_rice = preddat %>% filter(crop == "rice") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 1) %>% # "+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_soy = preddat %>% filter(crop == "soybean") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 1) %>% #"+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_wheat = preddat %>% filter(crop == "wheat") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 1) %>% #"+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(),
+         
+         pftr_corn = preddat %>% filter(crop == "corn") %>% "$"(profit_true_lag) %>% 
+           matrix(., nrow = 1) %>% # "+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         pftr_rice = preddat %>% filter(crop == "rice") %>% "$"(profit_true_lag) %>% 
+           matrix(., nrow = 1) %>% # "+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         pftr_soy = preddat %>% filter(crop == "soybean") %>% "$"(profit_true_lag) %>% 
+           matrix(., nrow = 1) %>% #"+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         pftr_wheat = preddat %>% filter(crop == "wheat") %>% "$"(profit_true_lag) %>% 
+           matrix(., nrow = 1) %>% #"+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(),
+         
+         revex_corn = preddat %>% filter(crop == "corn") %>% "$"(ex_revenue) %>% 
+           matrix(., nrow = 1) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         revex_rice = preddat %>% filter(crop == "rice") %>% "$"(ex_revenue) %>% 
+           matrix(., nrow = 1) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(),
+         revex_soy = preddat %>% filter(crop == "soybean") %>% "$"(ex_revenue) %>% 
+           matrix(., nrow = 1) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         revex_wheat = preddat %>% filter(crop == "wheat") %>% "$"(ex_revenue) %>% 
+           matrix(., nrow = 1) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(),
+         tcost_corn = preddat %>% filter(crop == "corn") %>% "$"(tcost) %>% 
+           matrix(., nrow = 1) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         tcost_rice = preddat %>% filter(crop == "rice") %>% "$"(tcost) %>% 
+           matrix(., nrow = 1) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(),
+         tcost_soy = preddat %>% filter(crop == "soybean") %>% "$"(tcost) %>% 
+           matrix(., nrow = 1) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         tcost_wheat = preddat %>% filter(crop == "wheat") %>% "$"(tcost) %>% 
+           matrix(., nrow = 1) %>% 
+           kronecker(rep(1, 4), .) %>% as.vector()) %>% 
+  mutate(rr_corn = revex_corn/revex_soy, 
+         rr_rice = revex_rice/revex_soy,
+         rc_corn = tcost_corn/tcost_soy, 
+         rc_rice = tcost_rice/tcost_soy)
+
+regdat <- regdat %>% filter(!region %in% c("Shandong", "Hebei"))
+preddat <- preddat %>% filter(!region %in% c("Shandong", "Hebei"))
+
+# model 1: 
+lm_corn_pf <- lm(y2 ~ pfex_corn + pfex_rice + pfex_soy + I(subsidy > 0) + # revex_corn +
+                   region,
+                 data = regdat %>% filter(crop == "corn"))
+
+lm_rice_pf <- lm(y2 ~ pfex_corn + pfex_rice + pfex_soy + I(subsidy > 0) + # revex_rice + 
+                   region,
+                 data = regdat %>% filter(crop == "rice"))
+
+lm_soy_pf <- lm(y2 ~ pfex_corn + pfex_rice + pfex_soy + I(subsidy > 0) + # revex_soy + 
+                  region,
+                data = regdat %>% filter(crop == "soybean"))
+
+summary(lm_corn_pf)
+summary(lm_rice_pf)
+summary(lm_soy_pf)
+
+
+# model 2: 
+lm_corn_rev <- lm(y2 ~ revex_corn + revex_rice + revex_soy + I(subsidy > 0) +
+                    region,
+                  data = regdat %>% filter(crop == "corn"))
+
+lm_rice_rev <- lm(y2 ~ revex_corn + revex_rice + revex_soy + I(subsidy > 0) +
+                    region,
+                  data = regdat %>% filter(crop == "rice"))
+
+lm_soy_rev <- lm(y2 ~ revex_corn + revex_rice + revex_soy + I(subsidy > 0) +
+                   region,
+                 data = regdat %>% filter(crop == "soybean"))
+
+
+summary(lm_corn_rev)
+summary(lm_rice_rev)
+summary(lm_soy_rev)
+
+# model 3: 
+lm_corn_rr <- lm(y2 ~ rr_corn + rr_rice + # revex_corn + 
+                  I(subsidy > 0) + region, 
+                 data = regdat %>% filter(crop == "corn"))
+
+lm_rice_rr <- lm(y2 ~ rr_corn + rr_rice + # revex_rice +
+                    I(subsidy > 0) + region, 
+                 data = regdat %>% filter(crop == "rice"))
+
+lm_soy_rr <- lm(y2 ~  rr_corn + rr_rice + # revex_soy + 
+                  I(subsidy > 0) + region, 
+                data = regdat %>% filter(crop == "soybean"))
+
+
+
+summary(lm_corn_rr)
+summary(lm_rice_rr)
+summary(lm_soy_rr)
+```
+

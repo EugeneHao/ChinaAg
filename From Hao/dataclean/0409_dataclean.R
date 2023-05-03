@@ -128,7 +128,7 @@ multidat <- left_join(costdat, acredat %>% select(region, year, soybean_share, w
   mutate(crop = factor(crop, labels = c("corn", "rice", "soybean", "wheat"))))
 
 ### Data 3: Future Price #### 
-fuprice <- readRDS("data/heilongjiang/future_price.rds") %>% 
+fuprice <- readRDS("From Hao/data/heilongjiang/future_price.rds") %>% 
   filter(month == "03") %>% select(year, crop, ex_price) %>% 
   mutate(year = as.numeric(year))
 
@@ -137,7 +137,7 @@ my_fuprice <- data.frame(year = rep(2001:2021, 4),
   left_join(., fuprice)
 
 # load the price data 
-price <- readxl::read_xls("rawdata/全国平均价格.xls")
+price <- readxl::read_xls("From Hao/rawdata/全国平均价格.xls")
 
 names(price) <- c("index", "region", "crop", "year", "price")
 price$year <- as.numeric(price$year)
@@ -151,9 +151,18 @@ my_fuprice <- left_join(my_fuprice, price) %>% mutate(price = price/50)
 # impute the missing future price 
 for(i in unique(my_fuprice$crop))
 {
-  lm_exprice <- lm(ex_price ~ price, dat = my_fuprice %>% filter(crop == i))
-  my_fuprice$ex_price[is.na(my_fuprice$ex_price) & (my_fuprice$crop == i)] <- 
-    predict(lm_exprice, newdata = my_fuprice %>% filter(crop == i, is.na(ex_price)))
+  if(i == "rice")
+  {
+    price_diff <- (my_fuprice %>% filter(crop == i, !is.na(ex_price)) %>% "$"(ex_price) %>% mean()) - 
+      (my_fuprice %>% filter(crop == i, !is.na(ex_price)) %>% "$"(price) %>% mean())
+    my_fuprice$ex_price[is.na(my_fuprice$ex_price) & (my_fuprice$crop == i)] <-
+      my_fuprice$price[is.na(my_fuprice$ex_price) & (my_fuprice$crop == i)] + price_diff
+  } else
+  {
+    lm_exprice <- lm(ex_price ~ price, dat = my_fuprice %>% filter(crop == i))
+    my_fuprice$ex_price[is.na(my_fuprice$ex_price) & (my_fuprice$crop == i)] <-
+      predict(lm_exprice, newdata = my_fuprice %>% filter(crop == i, is.na(ex_price)))
+  }
 }
 
 names(my_fuprice)[4] <- "national"
@@ -162,8 +171,17 @@ multidat <- multidat %>% left_join(., my_fuprice, by = c("crop", "year"))
 
 ### Data 4: subsidy   #### 
 
-subsidy <- readRDS("data/heilongjiang/dat.rds") %>% select(crop, year, subsidy_mu) %>% 
+subsidy <- readRDS("From Hao/data/heilongjiang/dat.rds") %>% select(crop, year, subsidy_mu) %>% 
   "colnames<-"(c("crop", "year", "subsidy"))
+
+# add land fertility protection subsidies (for V2)
+subsidy$subsidy[subsidy$year == 2015] <- subsidy$subsidy[subsidy$year == 2015] + 57.58
+subsidy$subsidy[subsidy$year == 2016] <- subsidy$subsidy[subsidy$year == 2016] + 71.45
+subsidy$subsidy[subsidy$year == 2017] <- subsidy$subsidy[subsidy$year == 2017] + 71.50
+subsidy$subsidy[subsidy$year == 2018] <- subsidy$subsidy[subsidy$year == 2018] + 71.70
+subsidy$subsidy[subsidy$year == 2019] <- subsidy$subsidy[subsidy$year == 2019] + 72.41
+subsidy$subsidy[subsidy$year == 2020] <- subsidy$subsidy[subsidy$year == 2020] + 56.72
+subsidy$subsidy[subsidy$year == 2021] <- subsidy$subsidy[subsidy$year == 2021] + 56.72
 
 multidat <- multidat %>% left_join(., subsidy)
 multidat$subsidy[is.na(multidat$subsidy)] <- 0
@@ -171,4 +189,4 @@ multidat$subsidy[is.na(multidat$subsidy)] <- 0
 # change cost unit to yuan/kg 
 multidat$cost <- multidat$cost/multidat$yield
 
-
+saveRDS(multidat, "From Hao/data/dongbei/multidat_nolag_V2.rds")

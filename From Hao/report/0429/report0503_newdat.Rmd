@@ -1,7 +1,7 @@
 ---
-title: "result0429"
+title: "result0503_newdat"
 author: "Hao Sun"
-date: "4/29/2023"
+date: "5/3/2023"
 output: html_document
 ---
 
@@ -122,17 +122,17 @@ for(i in 2001:2021)
   # Step 3: run all the models 
   
   # model 1
-  lm_corn_pf <- lm(y2 ~ 0 + pfex_corn + pfex_rice + pfex_soy + I(subsidy > 0) + region,
+  lm_corn_pf <- lm(y2 ~ 0 + pfex_corn + pfex_rice + pfex_soy  + region,
               data = regdat %>% filter(crop == "corn"))
 
-  lm_rice_pf <- lm(y2 ~ 0 + pfex_corn + pfex_rice + pfex_soy + I(subsidy > 0) + region,
+  lm_rice_pf <- lm(y2 ~ 0 + pfex_corn + pfex_rice + pfex_soy  + region,
                 data = regdat %>% filter(crop == "rice"))
   
-  lm_soy_pf <- lm(y2 ~ 0 + pfex_corn + pfex_rice + pfex_soy + I(subsidy > 0) + region,
+  lm_soy_pf <- lm(y2 ~ 0 + pfex_corn + pfex_rice + pfex_soy  + region,
                 data = regdat %>% filter(crop == "soybean"))
   
   # model 2
-  lm_corn_rev <- lm(y2 ~ 0 + revex_corn + revex_rice + revex_soy  + region,
+  lm_corn_rev <- lm(y2 ~ 0 + revex_corn + revex_rice + revex_soy   + region,
               data = regdat %>% filter(crop == "corn"))
 
   lm_rice_rev <- lm(y2 ~ 0 + revex_corn + revex_rice + revex_soy  + region,
