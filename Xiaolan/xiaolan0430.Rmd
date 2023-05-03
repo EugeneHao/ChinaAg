@@ -10,15 +10,6 @@ output:
 
 
 
----
-title: "Regression result April 15"
-author: "Xiaolan"
-date: "4/19/2023"
-output:
-  pdf_document: default
-  html_document: default
----
-
 ### Preparation {-}
 
 ```{r echo = F, include=FALSE}
@@ -184,9 +175,9 @@ preddat <- preddat %>%
 
 ```{r echo = F, include=FALSE}
 #The true share for provinces in 2021 are 
+#share_true %>% data.frame() %>% "colnames<-"(unique(regdat$region)) %>% 
+#  "rownames<-"(unique(regdat$crop)) %>% pander::pander() 
 
-share_true %>% data.frame() %>% "colnames<-"(unique(regdat$region)) %>% 
-  "rownames<-"(unique(regdat$crop)) %>% pander::pander() 
 ```
 
 The **expected profit** of crop $i$ in province $j$ and year $t$ is defined as 
@@ -317,7 +308,7 @@ summary(lm_corn)
 
 
 
-#### Model 1 Regression {-}
+### Model 1 Regression {-}
 
 ```{r}
 lm_corn_pf <- lm(y2 ~ 0 + pfex_corn + pfex_rice + pfex_soy  + region,
@@ -390,6 +381,8 @@ stargazer(lm_corn_pftr, lm_rice_pftr, lm_soy_pftr, title = "Model 4 Results",col
 ```
 
 ### Model 5 {-}
+use the expected relative revenue, but set rice as baseline
+
 ```{r}
 lm_corn_rr2 <- lm(y2 ~ 0 + rr_corn2 + rr_soy2  + region, # rc_corn + rc_rice + rc_soy + 
               data = regdat %>% filter(crop == "corn"))
@@ -511,7 +504,89 @@ cbind(MSE1, MSE2, MSE3, MSE4, MSE5) %>% "colnames<-"(paste0("Model", 1:5)) %>%
   "rownames<-"(unique(regdat$crop)[-4]) %>% pander::pander() 
 ```
 
-### {Cross Validation}
+
+### Predicted Shares {-}
+
+$$
+y_{2, corn} = \log(s_{corn}/s_{other}) \Rightarrow \exp(y_{2, corn}) = s_{corn}/s_{other}
+$$
+
+$$
+s_{corn}/s_{other} + s_{rice}/s_{other} + s_{soy}/s_{other} + 1 = 1/s_{other}
+$$
+
+```{r}
+alldat <- rbind(regdat, preddat) %>% 
+                         arrange(region, crop, year)
+
+share_true = c(alldat$share[1:63], alldat$other[64:84], 
+                                       alldat$share[(1:63) + 84], alldat$other[(64:84) + 84],
+                                       alldat$share[(1:63) + 84 * 2], alldat$other[(64:84) + 84 * 2], 
+                                       alldat$share[(1:63) + 84 * 3], alldat$other[(64:84) + 84 * 3]) %>% 
+  matrix(., ncol = 4) 
+
+# model 1: predict y2 first 
+pd_corn_pf_all <- predict(lm_corn_pf, newdata = rbind(regdat, preddat) %>% 
+                         arrange(region, crop, year) %>% filter(crop == "corn"))
+pd_rice_pf_all <- predict(lm_rice_pf, newdata = rbind(regdat, preddat) %>% 
+                         arrange(region, crop, year) %>% filter(crop == "rice"))
+pd_soy_pf_all <- predict(lm_soy_pf, newdata = rbind(regdat, preddat) %>% 
+                         arrange(region, crop, year) %>% filter(crop == "soybean"))
+
+# model 1: transform back to share 
+# Neimenggu 2001, Neimenggu 2002, ..., Neimenggu 2021, 
+s_other_pf <- 1/(exp(pd_corn_pf_all) + exp(pd_rice_pf_all) + exp(pd_soy_pf_all) + 1)
+s_corn_pf <- s_other_pf * exp(pd_corn_pf_all)
+s_rice_pf <- s_other_pf * exp(pd_rice_pf_all)
+s_soy_pf <- s_other_pf * exp(pd_soy_pf_all)
+
+
+# model 2: predict y2 first 
+pd_corn_rev_all <- predict(lm_corn_rev, newdata = rbind(regdat, preddat) %>% 
+                         arrange(region, crop, year) %>% filter(crop == "corn"))
+pd_rice_rev_all <- predict(lm_rice_rev, newdata = rbind(regdat, preddat) %>% 
+                         arrange(region, crop, year) %>% filter(crop == "rice"))
+pd_soy_rev_all <- predict(lm_soy_rev, newdata = rbind(regdat, preddat) %>% 
+                         arrange(region, crop, year) %>% filter(crop == "soybean"))
+
+# model 2: transform back to share 
+s_other_rev <- 1/(exp(pd_corn_rev_all) + exp(pd_rice_rev_all) + exp(pd_soy_rev_all) + 1)
+s_corn_rev <- s_other_rev * exp(pd_corn_rev_all)
+s_rice_rev <- s_other_rev * exp(pd_rice_rev_all)
+s_soy_rev <- s_other_rev * exp(pd_soy_rev_all)
+
+# model 3: predict y2 first 
+pd_corn_rr_all <- predict(lm_corn_rr, newdata = rbind(regdat, preddat) %>% 
+                         arrange(region, crop, year) %>% filter(crop == "corn"))
+pd_rice_rr_all <- predict(lm_rice_rr, newdata = rbind(regdat, preddat) %>% 
+                         arrange(region, crop, year) %>% filter(crop == "rice"))
+pd_soy_rr_all <- predict(lm_soy_rr, newdata = rbind(regdat, preddat) %>% 
+                         arrange(region, crop, year) %>% filter(crop == "soybean"))
+
+# model 3: relative revenue
+# Neimenggu 2001, Neimenggu 2002, ..., Neimenggu 2021, 
+s_other_rr <- 1/(exp(pd_corn_rr_all) + exp(pd_rice_rr_all) + exp(pd_soy_rr_all) + 1)
+s_corn_rr <- s_other_rr * exp(pd_corn_rr_all)
+s_rice_rr <- s_other_rr * exp(pd_rice_rr_all)
+s_soy_rr <- s_other_rr * exp(pd_soy_rr_all)
+
+
+
+# combine the results 
+predshare <- data.frame(region = rep(rep(c("Neimenggu", "Jilin", "Liaoning", "Heilongjiang"), each = 21), 4), 
+                        crop = rep(c("corn", "rice", "soybean", "other"), each = 84), 
+                        year = rep(2001:2021, 16), 
+                        share_true = c(share_true[1:21, ], share_true[22:42, ], 
+                                       share_true[43:63, ], share_true[64:84, ]),
+                        share_pf = round(100 * c(s_corn_pf, s_rice_pf, s_soy_pf, s_other_pf), 2),
+                        share_rev = round(100 * c(s_corn_rev, s_rice_rev, s_soy_rev, s_other_rev), 2),
+                        share_rr = round(100 * c(s_corn_rr, s_rice_rr, s_soy_rr, s_other_rr), 2))
+
+
+```
+
+
+### Cross Validation {-}
 We will use cross validation to compare the models.
 ```{r}
 # combine two datasets
@@ -583,7 +658,9 @@ alldat <- alldat %>%
   mutate(rr_corn = revex_corn/revex_soy, 
          rr_rice = revex_rice/revex_soy,
          rc_corn = tcost_corn/tcost_soy, 
-         rc_rice = tcost_rice/tcost_soy)
+         rc_rice = tcost_rice/tcost_soy,
+         rr_corn2 = revex_corn/revex_rice,
+         rr_soy2 = revex_soy/revex_rice)
 ```
 
 Start the cross validation: 
@@ -648,14 +725,15 @@ for(i in 2001:2021)
                 data = regdat %>% filter(crop == "soybean"))
   
   # model 5
-  lm_corn_rrrc <- lm(y2 ~ 0 + rr_corn + rr_rice + rc_corn + rc_rice + region, # rc_corn + rc_rice + rc_soy + 
+  lm_corn_rr2 <- lm(y2 ~ 0 + rr_corn2 + rr_soy2  + region, # rc_corn + rc_rice + rc_soy + 
               data = regdat %>% filter(crop == "corn"))
 
-  lm_rice_rrrc <- lm(y2 ~ 0 + rr_corn + rr_rice + rc_corn + rc_rice + region,
-                data = regdat %>% filter(crop == "rice"))
-  
-  lm_soy_rrrc <- lm(y2 ~ 0 +  rr_corn + rr_rice + rc_corn + rc_rice + region,
-                data = regdat %>% filter(crop == "soybean"))
+  lm_rice_rr2 <- lm(y2 ~ 0 + rr_corn2 + rr_soy2  + region,
+              data = regdat %>% filter(crop == "rice"))
+
+  lm_soy_rr2 <- lm(y2 ~ 0 +  rr_corn2 + rr_soy2  +  region,
+              data = regdat %>% filter(crop == "soybean"))
+
   
   # Step 4: calculate the predict share: 
   
@@ -700,14 +778,14 @@ for(i in 2001:2021)
                                   colSums(exp(y_pred_pftr)) + 1) * 100, 2)
 
   # model 5: 
-  pd_corn_rrrc <- predict(lm_corn_rrrc, newdata = preddat %>% filter(crop == "corn"))
-  pd_rice_rrrc <- predict(lm_rice_rrrc, newdata = preddat %>% filter(crop == "rice"))
-  pd_soy_rrrc <- predict(lm_soy_rrrc, newdata = preddat %>% filter(crop == "soybean"))
+  pd_corn_rr2 <- predict(lm_corn_rr2, newdata = preddat %>% filter(crop == "corn"))
+  pd_rice_rr2 <- predict(lm_rice_rr2, newdata = preddat %>% filter(crop == "rice"))
+  pd_soy_rr2 <- predict(lm_soy_rr2, newdata = preddat %>% filter(crop == "soybean"))
   
-  y_pred_rrrc <- rbind(pd_corn_rrrc, pd_rice_rrrc, pd_soy_rrrc)
+  y_pred_rr2 <- rbind(pd_corn_rr2, pd_rice_rr2, pd_soy_rr2)
   
-  share_est_rrrc <- round(sweep(exp(y_pred_rrrc), MARGIN = 2, FUN = "/", STATS =
-                                  colSums(exp(y_pred_rrrc)) + 1) * 100, 2)
+  share_est_rr2 <- round(sweep(exp(y_pred_rr2), MARGIN = 2, FUN = "/", STATS =
+                                  colSums(exp(y_pred_rr2)) + 1) * 100, 2)
   
   # Step 5: calculate the RMSE 
   
@@ -715,7 +793,7 @@ for(i in 2001:2021)
   RMSE2 <- rowMeans((share_true - share_est_rev)^2) %>% sqrt()
   RMSE3 <- rowMeans((share_true - share_est_rr)^2) %>% sqrt()
   RMSE4 <- rowMeans((share_true - share_est_pftr)^2) %>% sqrt()
-  RMSE5 <- rowMeans((share_true - share_est_rrrc)^2) %>% sqrt()
+  RMSE5 <- rowMeans((share_true - share_est_rr2)^2) %>% sqrt()
   
   # Step 6: combine the results 
   RMSE1_list <- rbind(RMSE1_list, RMSE1)
@@ -754,5 +832,9 @@ cbind(RMSE1_sd, RMSE2_sd, RMSE3_sd, RMSE4_sd, RMSE5_sd) %>%
   "rownames<-"(unique(regdat$crop)[-4]) %>% pander::pander() 
 ```
 
+
+```{r}
+print(predshare)
+```
 
 
