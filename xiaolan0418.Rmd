@@ -45,6 +45,9 @@ preddat <- readRDS("~/Documents/GitHub/ChinaAg/From Hao/data/dongbei/preddat.rds
          rcratio = (yield_lag * ex_price + subsidy_lag)/(yield_lag * cost)) %>% 
   filter(region == "Neimenggu"|region == "Heilongjiang"|region == "Jilin"|region =="Liaoning")
 
+# true share: 
+share_true <- preddat$share %>% matrix(., nrow = 4) %>% "["(-4,)
+
 preddat <- preddat %>% 
   mutate(share_wheat = preddat %>% filter(crop == "wheat") %>% "$"(share) %>% 
            matrix(., nrow = 1) %>% # "+"(400) %>% log() %>% 
@@ -52,8 +55,7 @@ preddat <- preddat %>%
   mutate(y2 = log(share/(other + share_wheat))) 
 
 
-# true share: 
-share_true <- preddat$share %>% matrix(., nrow = 4) %>% "["(-4,)
+
 
 
 

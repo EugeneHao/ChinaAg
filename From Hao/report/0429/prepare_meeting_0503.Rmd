@@ -14,7 +14,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 library(tidyverse)
 
-regdat <- readRDS("/Users/sunhao/Documents/GitHub/ChinaAg/From Hao/data/dongbei/regdat_V2.rds") %>% 
+regdat <- readRDS("~/Documents/GitHub/ChinaAg/From Hao/data/dongbei/regdat_V2.rds") %>% 
   mutate(ex_revenue = yield_lag * ex_price + subsidy_lag, 
          tcost = yield_lag * cost,
          rcratio = (yield_lag * ex_price + subsidy_lag)/(yield_lag * cost)) 
@@ -25,7 +25,7 @@ regdat <- regdat %>%
            kronecker(rep(1, 4), .) %>% as.vector()) %>% 
   mutate(y2 = log(share/(other + share_wheat)))   # get new y2 since now we combine other and wheat
 
-preddat <- readRDS("/Users/sunhao/Documents/GitHub/ChinaAg/From Hao/data/dongbei/preddat_V2.rds") %>% 
+preddat <- readRDS("~/Documents/GitHub/ChinaAg/From Hao/data/dongbei/preddat_V2.rds") %>% 
   mutate(ex_revenue = yield_lag * ex_price + subsidy_lag,
          tcost = yield_lag * cost,
          rcratio = (yield_lag * ex_price + subsidy_lag)/(yield_lag * cost)) 
