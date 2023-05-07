@@ -1,0 +1,894 @@
+---
+title: "For Oral Exam"
+author: "Hao Sun"
+date: "5/6/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+source("/Users/sunhao/Documents/GitHub/ChinaAg/From Hao/functions/get_lag.R")
+```
+
+## Regression Model {-}
+
+```{r}
+# prepare for meeting on 05/03
+
+library(tidyverse)
+
+regdat <- readRDS("/Users/sunhao/Documents/GitHub/ChinaAg/From Hao/data/dongbei/regdat_V2.rds") %>% 
+  mutate(ex_revenue = yield_lag * ex_price + subsidy_lag, 
+         tcost = yield_lag * cost,
+         rcratio = (yield_lag * ex_price + subsidy_lag)/(yield_lag * cost)) 
+
+regdat <- regdat %>% 
+  mutate(share_wheat = regdat %>% filter(crop == "wheat") %>% "$"(share) %>% 
+           matrix(., nrow = 20) %>% # "+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector()) %>% 
+  mutate(y2 = log(share/(other + share_wheat)))   # get new y2 since now we combine other and wheat
+
+preddat <- readRDS("/Users/sunhao/Documents/GitHub/ChinaAg/From Hao/data/dongbei/preddat_V2.rds") %>% 
+  mutate(ex_revenue = yield_lag * ex_price + subsidy_lag,
+         tcost = yield_lag * cost,
+         rcratio = (yield_lag * ex_price + subsidy_lag)/(yield_lag * cost)) 
+
+preddat <- preddat %>% 
+  mutate(share_wheat = preddat %>% filter(crop == "wheat") %>% "$"(share) %>% 
+           matrix(., nrow = 1) %>% # "+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector()) %>% 
+  mutate(y2 = log(share/(other + share_wheat))) 
+
+# true share: 
+share_true <- preddat$share %>% matrix(., nrow = 4) %>% "["(-4,)
+
+
+# add expected profit for each crop 
+regdat <- regdat %>% 
+  mutate(pfex_corn = regdat %>% filter(crop == "corn") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 20) %>% # "+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_rice = regdat %>% filter(crop == "rice") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 20) %>% # "+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_soy = regdat %>% filter(crop == "soybean") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 20) %>% # "+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_wheat = regdat %>% filter(crop == "wheat") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 20) %>% # "+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector()
+  )
+  
+
+# same for the predicted data 
+preddat <- preddat %>% 
+  mutate(pfex_corn = preddat %>% filter(crop == "corn") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 1) %>% # "+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_rice = preddat %>% filter(crop == "rice") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 1) %>% # "+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_soy = preddat %>% filter(crop == "soybean") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 1) %>% #"+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_wheat = preddat %>% filter(crop == "wheat") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 1) %>% #"+"(400) %>% log() %>% 
+           kronecker(rep(1, 4), .) %>% as.vector()
+  )
+
+regdat <- regdat %>% filter(!region %in% c("Shandong", "Hebei"))
+preddat <- preddat %>% filter(!region %in% c("Shandong", "Hebei"))
+
+regdat_V2 <- rbind(regdat, preddat)
+
+```
+
+```{r}
+regdat_V2$policy <- as.numeric(regdat_V2$subsidy > 0)
+
+# model 1: 
+lm_corn_pf <- lm(y2 ~ 0 + region + pfex_corn + pfex_rice + pfex_soy + policy, 
+                 data = regdat_V2 %>% filter(crop == "corn"))
+
+lm_rice_pf <- lm(y2 ~  0 + region + pfex_corn + pfex_rice + pfex_soy + policy,
+                 data = regdat_V2 %>% filter(crop == "rice"))
+
+lm_soy_pf <- lm(y2 ~  0 + region + pfex_corn + pfex_rice + pfex_soy + policy,
+                data = regdat_V2 %>% filter(crop == "soybean"))
+
+summary(lm_corn_pf)
+summary(lm_rice_pf)
+summary(lm_soy_pf)
+```
+
+
+
+## Prediction for 2022 to 2024 {-}
+
+### Construct the prediction data {-}
+
+We need to predict the expected profit for `corn`, `rice`, and `soybean`. To calculate the expected profict, we define 
+
+$$
+\text{Ex Profit}_t = \text{Pred Yield}_{t} * (\text{Ex Price}_t - \text{Cost}_t) + \text{Subsidy}_{t-1}
+$$
+The predicted yield is the average of previous three years' yield values. 
+
+
+Therefore, we need to predict $\text{Yield}$, $\text{Ex Price}$, $\text{Cost}$ and $\text{Subsidy}$. 
+
+Step 1: genetate region, crop, and year
+```{r}
+prednew <- data.frame(region = rep(rep(c("Neimenggu", "Jilin", 
+                                     "Liaoning", "Heilongjiang"), each = 4), 3), 
+                      crop = rep(c("corn", "rice", "soybean", "wheat"), 12), 
+                      year = rep(2022:2024, each = 16))
+```
+
+Step 2: Predict Subsidy
+
+We consider fix the subsidy for corn and rice but consider four possible change for subsidy of soybean: 
+
++ Same subsidy
++ Increase 10%
++ Increase 20% 
++ Increase 30%
+
+```{r}
+prednew$subsidy <- rep(preddat$subsidy, 3)  # same subsidy
+
+prednew$subsidy01 <- prednew$subsidy  # increase 10%
+prednew$subsidy01[prednew$crop == "soybean"] <- prednew$subsidy[prednew$crop == "soybean"] * 1.1
+
+prednew$subsidy02 <- prednew$subsidy  # increase 20%
+prednew$subsidy02[prednew$crop == "soybean"] <- prednew$subsidy[prednew$crop == "soybean"] * 1.2
+
+prednew$subsidy03 <- prednew$subsidy  # increase 30%
+prednew$subsidy03[prednew$crop == "soybean"] <- prednew$subsidy[prednew$crop == "soybean"] * 1.3
+```
+
+Step 3: Construct subsidy lag
+
+```{r}
+prednew$subsidy_lag <- prednew$subsidy
+prednew$subsidy01_lag <- prednew$subsidy
+prednew$subsidy02_lag <- prednew$subsidy
+prednew$subsidy03_lag <- prednew$subsidy
+
+prednew$subsidy01_lag[prednew$year > 2022] <- prednew$subsidy01[prednew$year > 2022]
+prednew$subsidy02_lag[prednew$year > 2022] <- prednew$subsidy02[prednew$year > 2022]
+prednew$subsidy03_lag[prednew$year > 2022] <- prednew$subsidy03[prednew$year > 2022]
+```
+
+Step 4: Impute the Yield and Yield_lag
+
+```{r}
+prednew$yield <- 0
+
+for(i in c("corn", "rice", "soybean", "wheat"))
+{
+  lm_yield <- lm(yield ~ 0 + region + year, data = regdat_V2 %>% filter(crop == i))
+  pred_yield <- predict(lm_yield, newdata = prednew %>% filter(crop == i))
+  prednew$yield[prednew$crop == i] <- pred_yield
+}
+
+tmpdat <- rbind(regdat_V2 %>% select(region, crop, year, yield), 
+                prednew %>% select(region, crop, year, yield)) %>% 
+  arrange(region, crop, year)
+
+tmpdat$yield_lag <- get_lag(tmpdat, "yield", 3, weight = c(0.34, 0.33, 0.33))
+
+prednew$yield_lag <- tmpdat %>% filter(year > 2021) %>% arrange(year, region) %>% 
+  "$"(yield_lag)
+```
+
+Step 5: Impute Cost and Expected Price 
+
+```{r}
+prednew$ex_price <- 0
+prednew$cost <- 0
+
+for(i in c("corn", "rice", "soybean", "wheat"))
+{
+  lm_exprice <- lm(ex_price ~ 0 + region + year, data = regdat_V2 %>% filter(crop == i))
+  pred_exprice <- predict(lm_exprice, newdata = prednew %>% filter(crop == i))
+  prednew$ex_price[prednew$crop == i] <- pred_exprice
+  
+  lm_cost <- lm(cost ~ 0 + region + year, data = regdat_V2 %>% filter(crop == i))
+  pred_cost <- predict(lm_cost, newdata = prednew %>% filter(crop == i))
+  prednew$cost[prednew$crop == i] <- pred_cost
+}
+
+
+```
+
+Step 6: Calculate the Expected Profit 
+
+```{r}
+preddat_newsame <- prednew %>% 
+  mutate(profit_ex = yield_lag * (ex_price - cost) + subsidy_lag) %>% 
+  arrange(region, crop, year)
+  
+preddat_new01 <- prednew %>% 
+  mutate(profit_ex = yield_lag * (ex_price - cost) + subsidy01_lag) %>% 
+  arrange(region, crop, year)
+
+preddat_new02 <- prednew %>% 
+  mutate(profit_ex = yield_lag * (ex_price - cost) + subsidy02_lag) %>% 
+  arrange(region, crop, year)
+
+preddat_new03 <- prednew %>% 
+  mutate(profit_ex = yield_lag * (ex_price - cost) + subsidy03_lag) %>% 
+  arrange(region, crop, year)
+```
+
+### Prediction 
+
+Step 1: Construct covariates 
+
+```{r}
+preddat_newsame <- preddat_newsame %>% 
+    mutate(pfex_corn = preddat_newsame %>% filter(crop == "corn") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 3) %>% kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_rice = preddat_newsame %>% filter(crop == "rice") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 3) %>% kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_soy = preddat_newsame %>% filter(crop == "soybean") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 3) %>% kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_wheat = preddat_newsame %>% filter(crop == "wheat") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 3) %>% kronecker(rep(1, 4), .) %>% as.vector(),
+         policy = 1
+  )
+
+preddat_new01 <- preddat_new01%>% 
+    mutate(pfex_corn = preddat_new01 %>% filter(crop == "corn") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 3) %>% kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_rice = preddat_new01 %>% filter(crop == "rice") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 3) %>% kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_soy = preddat_new01 %>% filter(crop == "soybean") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 3) %>% kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_wheat = preddat_new01 %>% filter(crop == "wheat") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 3) %>% kronecker(rep(1, 4), .) %>% as.vector(),
+         policy = 1
+  )
+
+preddat_new02 <- preddat_new02 %>% 
+    mutate(pfex_corn = preddat_new02 %>% filter(crop == "corn") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 3) %>% kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_rice = preddat_new02 %>% filter(crop == "rice") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 3) %>% kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_soy = preddat_new02 %>% filter(crop == "soybean") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 3) %>% kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_wheat = preddat_new02 %>% filter(crop == "wheat") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 3) %>% kronecker(rep(1, 4), .) %>% as.vector(),
+         policy = 1
+  )
+
+preddat_new03 <- preddat_new03 %>% 
+    mutate(pfex_corn = preddat_new03 %>% filter(crop == "corn") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 3) %>% kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_rice = preddat_new03 %>% filter(crop == "rice") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 3) %>% kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_soy = preddat_new03 %>% filter(crop == "soybean") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 3) %>% kronecker(rep(1, 4), .) %>% as.vector(), 
+         pfex_wheat = preddat_new03 %>% filter(crop == "wheat") %>% "$"(profit_ex) %>% 
+           matrix(., nrow = 3) %>% kronecker(rep(1, 4), .) %>% as.vector(),
+         policy = 1
+  )
+```
+
+Step 2: Predict Y2
+
+```{r}
+preddat_newsame$Y2 <- 0
+preddat_new01$Y2 <- 0
+preddat_new02$Y2 <- 0
+preddat_new03$Y2 <- 0
+
+for(i in c("corn", "rice", "soybean"))
+{
+  if(i == "corn")
+  {
+    lmtmp = lm_corn_pf
+  } else if(i == "rice")
+  {
+    lmtmp = lm_rice_pf
+  } else if(i == "soybean")
+  {
+    lmtmp = lm_soy_pf
+  }
+  preddat_newsame$Y2[preddat_newsame$crop == i] <- 
+    predict(lmtmp, newdata = preddat_newsame %>% filter(crop == i))
+  preddat_new01$Y2[preddat_new01$crop == i] <- 
+    predict(lmtmp, newdata = preddat_new01 %>% filter(crop == i))
+  preddat_new02$Y2[preddat_new02$crop == i] <- 
+    predict(lmtmp, newdata = preddat_new02 %>% filter(crop == i))
+  preddat_new03$Y2[preddat_new03$crop == i] <- 
+    predict(lmtmp, newdata = preddat_new03 %>% filter(crop == i))
+}
+
+```
+
+
+Step 3: Predict share 
+
+$$
+Y_2 = \log(\text{Share}/\text{Share}_{other})
+$$
+
+```{r}
+preddat_newsame$share <- 0
+preddat_new01$share <- 0
+preddat_new02$share <- 0
+preddat_new03$share <- 0
+
+for(i in 2022:2024)
+{
+  # fix 
+  tmp_newsame <- preddat_newsame %>% filter(year == i, crop != "wheat") %>% 
+    "$"(Y2) %>%matrix(., ncol = 3, byrow = T)
+  other_newsame <- 1/(rowSums(exp(tmp_newsame)) + 1)
+  share_newsame <- sweep(exp(tmp_newsame), MARGIN = 1, FUN = "*", STATS = other_newsame)
+  preddat_newsame$share[preddat_newsame$year == i & 
+                          preddat_newsame$crop != "wheat"] <- 
+    t(share_newsame) %>% as.numeric()
+
+  # soybean increase 10% 
+  tmp_new01 <- preddat_new01 %>% filter(year == i, crop != "wheat") %>% 
+    "$"(Y2) %>%matrix(., ncol = 3, byrow = T)
+  other_new01 <- 1/(rowSums(exp(tmp_new01)) + 1)
+  share_new01 <- sweep(exp(tmp_new01), MARGIN = 1, FUN = "*", STATS = other_new01)
+  preddat_new01$share[preddat_new01$year == i & 
+                          preddat_new01$crop != "wheat"] <- 
+    t(share_new01) %>% as.numeric()
+  
+  # soybean increase 20% 
+  tmp_new02 <- preddat_new02 %>% filter(year == i, crop != "wheat") %>% 
+    "$"(Y2) %>%matrix(., ncol = 3, byrow = T)
+  other_new02 <- 1/(rowSums(exp(tmp_new02)) + 1)
+  share_new02 <- sweep(exp(tmp_new02), MARGIN = 1, FUN = "*", STATS = other_new02)
+  preddat_new02$share[preddat_new02$year == i & 
+                          preddat_new02$crop != "wheat"] <- 
+    t(share_new02) %>% as.numeric()
+  
+  # soybean increase 30% 
+  tmp_new03 <- preddat_new03 %>% filter(year == i, crop != "wheat") %>% 
+    "$"(Y2) %>%matrix(., ncol = 3, byrow = T)
+  other_new03 <- 1/(rowSums(exp(tmp_new03)) + 1)
+  share_new03 <- sweep(exp(tmp_new03), MARGIN = 1, FUN = "*", STATS = other_new03)
+  preddat_new03$share[preddat_new03$year == i & 
+                          preddat_new03$crop != "wheat"] <- 
+    t(share_new03) %>% as.numeric()
+}
+```
+
+Step 4: Predict UB and LB for share 
+
+```{r eval = FALSE}
+tmpdat_newsame <- preddat_newsame
+tmpdat_new01 <- preddat_new01
+tmpdat_new02 <- preddat_new02
+tmpdat_new03 <- preddat_new03
+
+randshare_newsame <- NULL
+randshare_new01 <- NULL
+randshare_new02 <- NULL
+randshare_new03 <- NULL
+
+cov_resid <- cov(cbind(lm_corn_pf$residuals, lm_rice_pf$residuals, lm_soy_pf$residuals))
+
+for(iter in 1:10000)
+{
+  set.seed(iter)
+  resid_newsame <- MASS::mvrnorm(n = 12, mu = rep(0, 3), Sigma = cov_resid)
+  resid_new01 <- MASS::mvrnorm(n = 12, mu = rep(0, 3), Sigma = cov_resid)
+  resid_new02 <- MASS::mvrnorm(n = 12, mu = rep(0, 3), Sigma = cov_resid)
+  resid_new03 <- MASS::mvrnorm(n = 12, mu = rep(0, 3), Sigma = cov_resid)
+  for(i in 1:3)
+  {
+    crop_i = c("corn", "rice", "soybean")[i]
+    if(crop_i == "corn")
+    {
+      lmtmp = lm_corn_pf
+    } else if(crop_i == "rice")
+    {
+      lmtmp = lm_rice_pf
+    } else if(crop_i == "soybean")
+    {
+      lmtmp = lm_soy_pf
+    }
+    # random y2 
+    tmpdat_newsame$Y2[tmpdat_newsame$crop == crop_i] <- 
+      predict(lmtmp, newdata = tmpdat_newsame %>% filter(crop == crop_i)) + resid_newsame[,i]
+    tmpdat_new01$Y2[tmpdat_new01$crop == crop_i] <- 
+      predict(lmtmp, newdata = tmpdat_new01 %>% filter(crop == crop_i)) + resid_new01[,i]
+    tmpdat_new02$Y2[tmpdat_new02$crop == crop_i] <- 
+      predict(lmtmp, newdata = tmpdat_new02 %>% filter(crop == crop_i)) + resid_new02[,i]
+    tmpdat_new03$Y2[tmpdat_new03$crop == crop_i] <- 
+      predict(lmtmp, newdata = tmpdat_new03 %>% filter(crop == crop_i)) + resid_new03[,i]
+    # compute share 
+    tmpdat_newsame$share <- 0
+    tmpdat_new01$share <- 0
+    tmpdat_new02$share <- 0
+    tmpdat_new03$share <- 0
+  }
+  
+  for(tt in 2022:2024)
+  {
+    # fix 
+    tmp_newsame <- tmpdat_newsame %>% filter(year == tt, crop != "wheat") %>% 
+      "$"(Y2) %>%matrix(., ncol = 3, byrow = T)
+    other_newsame <- 1/(rowSums(exp(tmp_newsame)) + 1)
+    share_newsame <- sweep(exp(tmp_newsame), MARGIN = 1, FUN = "*", STATS = other_newsame)
+    tmpdat_newsame$share[tmpdat_newsame$year == tt & 
+                            tmpdat_newsame$crop != "wheat"] <- 
+      t(share_newsame) %>% as.numeric()
+    
+    # soybean increase 10% 
+    tmp_new01 <- tmpdat_new01 %>% filter(year == tt, crop != "wheat") %>% 
+      "$"(Y2) %>%matrix(., ncol = 3, byrow = T)
+    other_new01 <- 1/(rowSums(exp(tmp_new01)) + 1)
+    share_new01 <- sweep(exp(tmp_new01), MARGIN = 1, FUN = "*", STATS = other_new01)
+    tmpdat_new01$share[tmpdat_new01$year == tt & 
+                          tmpdat_new01$crop != "wheat"] <- 
+      t(share_new01) %>% as.numeric()
+    
+    # soybean increase 20% 
+    tmp_new02 <- tmpdat_new02 %>% filter(year == tt, crop != "wheat") %>% 
+      "$"(Y2) %>%matrix(., ncol = 3, byrow = T)
+    other_new02 <- 1/(rowSums(exp(tmp_new02)) + 1)
+    share_new02 <- sweep(exp(tmp_new02), MARGIN = 1, FUN = "*", STATS = other_new02)
+    tmpdat_new02$share[tmpdat_new02$year == tt & 
+                          tmpdat_new02$crop != "wheat"] <- 
+      t(share_new02) %>% as.numeric()
+    
+    # soybean increase 30% 
+    tmp_new03 <- tmpdat_new03 %>% filter(year == tt, crop != "wheat") %>% 
+      "$"(Y2) %>%matrix(., ncol = 3, byrow = T)
+    other_new03 <- 1/(rowSums(exp(tmp_new03)) + 1)
+    share_new03 <- sweep(exp(tmp_new03), MARGIN = 1, FUN = "*", STATS = other_new03)
+    tmpdat_new03$share[tmpdat_new03$year == tt & 
+                          tmpdat_new03$crop != "wheat"] <- 
+      t(share_new03) %>% as.numeric()
+  }
+  
+  randshare_newsame <- cbind(randshare_newsame, tmpdat_newsame$share)
+  randshare_new01 <- cbind(randshare_new01, tmpdat_new01$share)
+  randshare_new02 <- cbind(randshare_new02, tmpdat_new02$share)
+  randshare_new03 <- cbind(randshare_new03, tmpdat_new03$share)
+}
+
+saveRDS(randshare_newsame, "/Users/sunhao/Documents/GitHub/ChinaAg/From Hao/report/0506/randshare_newsame.rds")
+saveRDS(randshare_new01, "/Users/sunhao/Documents/GitHub/ChinaAg/From Hao/report/0506/randshare_new01.rds")
+saveRDS(randshare_new02, "/Users/sunhao/Documents/GitHub/ChinaAg/From Hao/report/0506/randshare_new02.rds")
+saveRDS(randshare_new03, "/Users/sunhao/Documents/GitHub/ChinaAg/From Hao/report/0506/randshare_new03.rds")
+```
+
+```{r}
+randshare_newsame <- readRDS("/Users/sunhao/Documents/GitHub/ChinaAg/From Hao/report/0506/randshare_newsame.rds")
+
+randshare_new01 <- readRDS("/Users/sunhao/Documents/GitHub/ChinaAg/From Hao/report/0506/randshare_new01.rds")
+randshare_new02 <- readRDS("/Users/sunhao/Documents/GitHub/ChinaAg/From Hao/report/0506/randshare_new02.rds")
+randshare_new03 <- readRDS("/Users/sunhao/Documents/GitHub/ChinaAg/From Hao/report/0506/randshare_new03.rds")
+
+LB_newsame <- randshare_newsame %>% 
+  apply(., MARGIN = 1, FUN = function(x) quantile(x, prob = 0.025))
+
+LB_new01 <- randshare_new01 %>% 
+  apply(., MARGIN = 1, FUN = function(x) quantile(x, prob = 0.025))
+
+LB_new02 <- randshare_new02 %>% 
+  apply(., MARGIN = 1, FUN = function(x) quantile(x, prob = 0.025))
+
+LB_new03 <- randshare_new03 %>% 
+  apply(., MARGIN = 1, FUN = function(x) quantile(x, prob = 0.025))
+
+UB_newsame <- randshare_newsame %>% 
+  apply(., MARGIN = 1, FUN = function(x) quantile(x, prob = 0.975))
+
+UB_new01 <- randshare_new01 %>% 
+  apply(., MARGIN = 1, FUN = function(x) quantile(x, prob = 0.975))
+
+UB_new02 <- randshare_new02 %>% 
+  apply(., MARGIN = 1, FUN = function(x) quantile(x, prob = 0.975))
+
+UB_new03 <- randshare_new03 %>% 
+  apply(., MARGIN = 1, FUN = function(x) quantile(x, prob = 0.975))
+
+```
+
+
+Step 5: Predict Total Acreage 
+
+Load raw acreage data
+```{r}
+rawacre <- readxl::read_xls("/Users/sunhao/Documents/GitHub/ChinaAg/From Hao/rawdata/PlantAcre0409.xls")
+
+colnames(rawacre) <- c("index", "region", "year", "value")
+# region
+rawacre$region <- factor(rawacre$region, labels = c("Neimenggu", "Jilin", "Shandong", "Hebei",
+                                                    "Henan", "Liaoning", "Heilongjiang"))
+# filter 
+
+acredat <- rawacre %>% filter(region != "Henan", index != "耕地面积（千公顷）")
+# index 
+acredat$index <- factor(acredat$index, labels = c("total", "soybean", "wheat", "corn", "rice"))
+
+acredat <- acredat %>% spread(key = index, value = value)
+acredat$year <- as.numeric(acredat$year)
+acredat$total <- as.numeric(acredat$total)
+acredat$soybean <- as.numeric(acredat$soybean)
+acredat$wheat <- as.numeric(acredat$wheat)
+acredat$corn <- as.numeric(acredat$corn)
+acredat$rice <- as.numeric(acredat$rice)
+
+acredat <- acredat %>% dplyr::select(region, year, total) %>% 
+  filter(region %in% c("Neimenggu", "Jilin", "Liaoning", "Heilongjiang"))
+```
+
+To predict total, we cannot use linear regression model. I average the total acreage in the past three years (from 2016 to 2021) as the annual increase for total acreage in the next three years (from 2022:2024)
+
+
+```{r}
+preddat_newsame <- preddat_newsame %>% 
+  mutate(region = factor(region, levels = c("Neimenggu", "Jilin", "Liaoning", "Heilongjiang"))) %>% 
+  arrange(region, crop, year)
+
+preddat_new01 <- preddat_new01 %>% 
+  mutate(region = factor(region, levels = c("Neimenggu", "Jilin", "Liaoning", "Heilongjiang"))) %>% 
+  arrange(region, crop, year)
+preddat_new02 <- preddat_new02 %>% 
+  mutate(region = factor(region, levels = c("Neimenggu", "Jilin", "Liaoning", "Heilongjiang"))) %>% 
+  arrange(region, crop, year)
+preddat_new03 <- preddat_new03 %>% 
+  mutate(region = factor(region, levels = c("Neimenggu", "Jilin", "Liaoning", "Heilongjiang"))) %>% 
+  arrange(region, crop, year)
+
+pred_total <- 
+  acredat %>% filter(year %in% c(2018, 2021)) %>% 
+  spread(key = year, value = total) %>% 
+  mutate(avgchange = (`2021` - `2018`)/3) %>% 
+  mutate(`2022` = `2021` + avgchange, 
+         `2023` = `2021` + avgchange * 2, 
+         `2024` = `2021` + avgchange * 3) %>% 
+  select(`2022`, `2023`, `2024`) %>% 
+  as.matrix() %>% t() %>% 
+  kronecker(rep(1, 4), .) %>% as.vector()
+
+preddat_newsame <- preddat_newsame %>% 
+  mutate(total = pred_total, acre = total * share, 
+         acre_LB = total * LB_newsame, acre_UB = total * UB_newsame)
+preddat_new01 <- preddat_new01 %>% 
+  mutate(total = pred_total, acre = total * share,
+         acre_LB = total * LB_newsame, acre_UB = total * UB_newsame)
+preddat_new02 <- preddat_new02 %>% 
+  mutate(total = pred_total, acre = total * share,
+         acre_LB = total * LB_newsame, acre_UB = total * UB_newsame)
+preddat_new03 <- preddat_new03 %>% 
+  mutate(total = pred_total, acre = total * share,
+         acre_LB = total * LB_newsame, acre_UB = total * UB_newsame)
+```
+
+
+## Provide Figures {-}
+
+### Share Prediction {-}
+
+```{r}
+share_newsame <- 
+  regdat_V2 %>% 
+  select(region, crop, year, share) %>% 
+  rbind(., preddat_newsame %>% select(region, crop, year, share) %>% 
+          mutate(share = share * 100)) %>% 
+  arrange(region, crop, year) %>% 
+  filter(crop %in% c("corn", "rice", "soybean")) %>% 
+  mutate(pred = rep(rep(c(F, T), c(21, 3)), 12))
+
+share_new01 <- 
+  regdat_V2 %>% 
+  select(region, crop, year, share) %>% 
+  rbind(., preddat_new01 %>% select(region, crop, year, share) %>% 
+          mutate(share = share * 100)) %>% 
+  arrange(region, crop, year) %>% 
+  filter(crop %in% c("corn", "rice", "soybean")) %>% 
+  mutate(pred = rep(rep(c(F, "T01"), c(21, 3)), 12))
+
+share_new02 <- 
+  regdat_V2 %>% 
+  select(region, crop, year, share) %>% 
+  rbind(., preddat_new02 %>% select(region, crop, year, share) %>% 
+          mutate(share = share * 100)) %>% 
+  arrange(region, crop, year) %>% 
+  filter(crop %in% c("corn", "rice", "soybean")) %>% 
+  mutate(pred = rep(rep(c(F, "T02"), c(21, 3)), 12))
+
+share_new03 <- 
+  regdat_V2 %>% 
+  select(region, crop, year, share) %>% 
+  rbind(., preddat_new03 %>% select(region, crop, year, share) %>% 
+          mutate(share = share * 100)) %>% 
+  arrange(region, crop, year) %>% 
+  filter(crop %in% c("corn", "rice", "soybean")) %>% 
+  mutate(pred = rep(rep(c(F, "T03"), c(21, 3)), 12))
+```
+
+
+```{r}
+ggplot() + 
+  geom_point(aes(x = year, y = share, color = interaction(crop, pred, sep = "_")), 
+             data = share_new01 %>% filter(crop == "corn", year >= 2015)) + 
+  geom_point(aes(x = year, y = share, color = interaction(crop, pred, sep = "_")), 
+             data = share_new02 %>% filter(crop == "corn", year >= 2015)) + 
+  geom_point(aes(x = year, y = share, color = interaction(crop, pred, sep = "_")), 
+             data = share_new03 %>% filter(crop == "corn", year >= 2015)) + 
+  geom_point(aes(x = year, y = share, color = interaction(crop, pred, sep = "_")), 
+             data = share_newsame %>% filter(crop == "corn", year >= 2015)) + 
+  geom_line(aes(x = year, y = share), 
+            data = share_newsame %>% filter(crop == "corn", year >= 2015)) + 
+  geom_line(aes(x = year, y = share), 
+            data = share_new01 %>% filter(crop == "corn", year >= 2015)) + 
+  geom_line(aes(x = year, y = share), 
+            data = share_new02 %>% filter(crop == "corn", year >= 2015)) + 
+  geom_line(aes(x = year, y = share), 
+            data = share_new03 %>% filter(crop == "corn", year >= 2015)) + 
+  facet_wrap(~region, nrow = 2, scales = "free") + 
+    scale_x_continuous(breaks = seq(2015, 2024, 2)) +
+  scale_color_manual(name = "",
+                     values = c("corn_FALSE" = "black", 
+                                "corn_TRUE" = "#6AB8EE", 
+                                "corn_T01" = "#5FEC49", 
+                                "corn_T02" = "#E69A1F",
+                                "corn_T03" = "#E6471F"),
+                     labels = c("Observed", "Same subsidy as 2021", 
+                                "Subsidy Increase 10%", "Subsidy Increase 20%", 
+                                "Subsidy Increase 30%")) +
+  xlab("Year") + ylab("Share (%)") + 
+  ggtitle("Province Level Corn Share Prediction in Northeast China") + 
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  theme_bw()
+```
+
+```{r}
+ggplot() + 
+  geom_point(aes(x = year, y = share, color = interaction(crop, pred, sep = "_")), 
+             data = share_new01 %>% filter(crop == "soybean", year >= 2015)) + 
+  geom_point(aes(x = year, y = share, color = interaction(crop, pred, sep = "_")), 
+             data = share_new02 %>% filter(crop == "soybean", year >= 2015)) + 
+  geom_point(aes(x = year, y = share, color = interaction(crop, pred, sep = "_")), 
+             data = share_new03 %>% filter(crop == "soybean", year >= 2015)) + 
+  geom_point(aes(x = year, y = share, color = interaction(crop, pred, sep = "_")), 
+             data = share_newsame %>% filter(crop == "soybean", year >= 2015)) + 
+  geom_line(aes(x = year, y = share), 
+            data = share_newsame %>% filter(crop == "soybean", year >= 2015)) + 
+  geom_line(aes(x = year, y = share), 
+            data = share_new01 %>% filter(crop == "soybean", year >= 2015)) + 
+  geom_line(aes(x = year, y = share), 
+            data = share_new02 %>% filter(crop == "soybean", year >= 2015)) + 
+  geom_line(aes(x = year, y = share), 
+            data = share_new03 %>% filter(crop == "soybean", year >= 2015)) + 
+  facet_wrap(~region, nrow = 2, scales = "free") + 
+  scale_x_continuous(breaks = seq(2015, 2024, 2)) +
+  scale_color_manual(name = "",
+                     values = c("soybean_FALSE" = "black", 
+                                "soybean_TRUE" = "#6AB8EE", 
+                                "soybean_T01" = "#5FEC49", 
+                                "soybean_T02" = "#E69A1F",
+                                "soybean_T03" = "#E6471F"),
+                     labels = c("Observed", "Same subsidy as 2021", 
+                                "Subsidy Increase 10%", "Subsidy Increase 20%", 
+                                "Subsidy Increase 30%")) +
+  xlab("Year") + ylab("Share (%)") + 
+  ggtitle("Province Level Soybean Share Prediction in Northeast China") + 
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  theme_bw()
+```
+
+```{r}
+ggplot() + 
+  geom_point(aes(x = year, y = share, color = interaction(crop, pred, sep = "_")), 
+             data = share_new01 %>% filter(crop == "rice", year >= 2015)) + 
+  geom_point(aes(x = year, y = share, color = interaction(crop, pred, sep = "_")), 
+             data = share_new02 %>% filter(crop == "rice", year >= 2015)) + 
+  geom_point(aes(x = year, y = share, color = interaction(crop, pred, sep = "_")), 
+             data = share_new03 %>% filter(crop == "rice", year >= 2015)) + 
+  geom_point(aes(x = year, y = share, color = interaction(crop, pred, sep = "_")), 
+             data = share_newsame %>% filter(crop == "rice", year >= 2015)) + 
+  geom_line(aes(x = year, y = share), 
+            data = share_newsame %>% filter(crop == "rice", year >= 2015)) + 
+  geom_line(aes(x = year, y = share), 
+            data = share_new01 %>% filter(crop == "rice", year >= 2015)) + 
+  geom_line(aes(x = year, y = share), 
+            data = share_new02 %>% filter(crop == "rice", year >= 2015)) + 
+  geom_line(aes(x = year, y = share), 
+            data = share_new03 %>% filter(crop == "rice", year >= 2015)) + 
+  facet_wrap(~region, nrow = 2, scales = "free") + 
+  scale_x_continuous(breaks = seq(2015, 2024, 2)) +
+  scale_color_manual(name = "",
+                     values = c("rice_FALSE" = "black", 
+                                "rice_TRUE" = "#6AB8EE", 
+                                "rice_T01" = "#5FEC49", 
+                                "rice_T02" = "#E69A1F",
+                                "rice_T03" = "#E6471F"),
+                     labels = c("Observed", "Same subsidy as 2021", 
+                                "Subsidy Increase 10%", "Subsidy Increase 20%", 
+                                "Subsidy Increase 30%")) +
+  xlab("Year") + ylab("Share (%)") + 
+  ggtitle("Province Level Rice Share Prediction in Northeast China") + 
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  theme_bw()
+```
+
+
+### Acreage Prediction {-}
+
+```{r}
+acre_newsame <- 
+  regdat_V2 %>% left_join(., acredat) %>% mutate(acre = share * total/100) %>% 
+  select(region, crop, year, acre) %>% 
+  mutate(acre_LB = acre, acre_UB = acre) %>%
+  rbind(., preddat_newsame %>% select(region, crop, year, acre, acre_LB, acre_UB)) %>% 
+  arrange(region, crop, year) %>% 
+  filter(crop %in% c("corn", "rice", "soybean")) %>% 
+  mutate(pred = rep(rep(c(F, T), c(21, 3)), 12))
+
+acre_new01 <- 
+  regdat_V2 %>% left_join(., acredat) %>% mutate(acre = share * total/100) %>% 
+  select(region, crop, year, acre) %>% 
+  mutate(acre_LB = acre, acre_UB = acre) %>%
+  rbind(., preddat_new01 %>% select(region, crop, year, acre, acre_LB, acre_UB)) %>% 
+  arrange(region, crop, year) %>% 
+  filter(crop %in% c("corn", "rice", "soybean")) %>% 
+  mutate(pred = rep(rep(c(F, "T01"), c(21, 3)), 12))
+
+acre_new02 <- 
+  regdat_V2 %>% left_join(., acredat) %>% mutate(acre = share * total/100) %>% 
+  select(region, crop, year, acre) %>% 
+  mutate(acre_LB = acre, acre_UB = acre) %>%
+  rbind(., preddat_new02 %>% select(region, crop, year, acre, acre_LB, acre_UB)) %>% 
+  arrange(region, crop, year) %>% 
+  filter(crop %in% c("corn", "rice", "soybean")) %>% 
+  mutate(pred = rep(rep(c(F, "T02"), c(21, 3)), 12))
+
+acre_new03 <- 
+  regdat_V2 %>% left_join(., acredat) %>% mutate(acre = share * total/100) %>% 
+  select(region, crop, year, acre) %>% 
+  mutate(acre_LB = acre, acre_UB = acre) %>%
+  rbind(., preddat_new03 %>% select(region, crop, year, acre, acre_LB, acre_UB)) %>% 
+  arrange(region, crop, year) %>% 
+  filter(crop %in% c("corn", "rice", "soybean")) %>% 
+  mutate(pred = rep(rep(c(F, "T03"), c(21, 3)), 12))
+```
+
+
+```{r}
+ggplot() + 
+  geom_point(aes(x = year, y = acre, color = interaction(crop, pred, sep = "_")), 
+             data = acre_new01 %>% filter(crop == "corn", year >= 2015)) + 
+  geom_point(aes(x = year, y = acre, color = interaction(crop, pred, sep = "_")), 
+             data = acre_new02 %>% filter(crop == "corn", year >= 2015)) + 
+  geom_point(aes(x = year, y = acre, color = interaction(crop, pred, sep = "_")), 
+             data = acre_new03 %>% filter(crop == "corn", year >= 2015)) + 
+  geom_point(aes(x = year, y = acre, color = interaction(crop, pred, sep = "_")), 
+             data = acre_newsame %>% filter(crop == "corn", year >= 2015)) + 
+  geom_line(aes(x = year, y = acre), 
+            data = acre_newsame %>% filter(crop == "corn", year >= 2015)) + 
+  geom_line(aes(x = year, y = acre), 
+            data = acre_new01 %>% filter(crop == "corn", year >= 2015)) + 
+  geom_line(aes(x = year, y = acre), 
+            data = acre_new02 %>% filter(crop == "corn", year >= 2015)) + 
+  geom_line(aes(x = year, y = acre), 
+            data = acre_new03 %>% filter(crop == "corn", year >= 2015)) + 
+  facet_wrap(~region, nrow = 2, scales = "free") + 
+    scale_x_continuous(breaks = seq(2015, 2024, 2)) +
+  scale_color_manual(name = "",
+                     values = c("corn_FALSE" = "black", 
+                                "corn_TRUE" = "#6AB8EE", 
+                                "corn_T01" = "#5FEC49", 
+                                "corn_T02" = "#E69A1F",
+                                "corn_T03" = "#E6471F"),
+                     labels = c("Observed", "Same subsidy as 2021", 
+                                "Subsidy Increase 10%", "Subsidy Increase 20%", 
+                                "Subsidy Increase 30%")) +
+  xlab("Year") + ylab("Acreage (unit = 10 km2)") + 
+  ggtitle("Province Level Corn Acreage Prediction in Northeast China") + 
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  theme_bw()
+```
+```{r}
+ggplot() + 
+  geom_point(aes(x = year, y = acre, color = interaction(crop, pred, sep = "_")), 
+             data = acre_new01 %>% filter(crop == "soybean", year >= 2015)) + 
+  geom_point(aes(x = year, y = acre, color = interaction(crop, pred, sep = "_")), 
+             data = acre_new02 %>% filter(crop == "soybean", year >= 2015)) + 
+  geom_point(aes(x = year, y = acre, color = interaction(crop, pred, sep = "_")), 
+             data = acre_new03 %>% filter(crop == "soybean", year >= 2015)) + 
+  geom_point(aes(x = year, y = acre, color = interaction(crop, pred, sep = "_")), 
+             data = acre_newsame %>% filter(crop == "soybean", year >= 2015)) + 
+  geom_line(aes(x = year, y = acre), 
+            data = acre_newsame %>% filter(crop == "soybean", year >= 2015)) + 
+  geom_line(aes(x = year, y = acre), 
+            data = acre_new01 %>% filter(crop == "soybean", year >= 2015)) + 
+  geom_line(aes(x = year, y = acre), 
+            data = acre_new02 %>% filter(crop == "soybean", year >= 2015)) + 
+  geom_line(aes(x = year, y = acre), 
+            data = acre_new03 %>% filter(crop == "soybean", year >= 2015)) + 
+  facet_wrap(~region, nrow = 2, scales = "free") + 
+  scale_x_continuous(breaks = seq(2015, 2024, 2)) +
+  scale_color_manual(name = "",
+                     values = c("soybean_FALSE" = "black", 
+                                "soybean_TRUE" = "#6AB8EE", 
+                                "soybean_T01" = "#5FEC49", 
+                                "soybean_T02" = "#E69A1F",
+                                "soybean_T03" = "#E6471F"),
+                     labels = c("Observed", "Same subsidy as 2021", 
+                                "Subsidy Increase 10%", "Subsidy Increase 20%", 
+                                "Subsidy Increase 30%")) +
+  xlab("Year") + ylab("Acreage (unit = 10 km2)") + 
+  ggtitle("Province Level Soybean Acreage Prediction in Northeast China") + 
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  theme_bw()
+```
+
+```{r}
+ggplot() + 
+  geom_point(aes(x = year, y = acre, color = interaction(crop, pred, sep = "_")), 
+             data = acre_new01 %>% filter(crop == "rice", year >= 2015)) + 
+  geom_point(aes(x = year, y = acre, color = interaction(crop, pred, sep = "_")), 
+             data = acre_new02 %>% filter(crop == "rice", year >= 2015)) + 
+  geom_point(aes(x = year, y = acre, color = interaction(crop, pred, sep = "_")), 
+             data = acre_new03 %>% filter(crop == "rice", year >= 2015)) + 
+  geom_point(aes(x = year, y = acre, color = interaction(crop, pred, sep = "_")), 
+             data = acre_newsame %>% filter(crop == "rice", year >= 2015)) + 
+  geom_line(aes(x = year, y = acre), 
+            data = acre_newsame %>% filter(crop == "rice", year >= 2015)) + 
+  geom_line(aes(x = year, y = acre), 
+            data = acre_new01 %>% filter(crop == "rice", year >= 2015)) + 
+  geom_line(aes(x = year, y = acre), 
+            data = acre_new02 %>% filter(crop == "rice", year >= 2015)) + 
+  geom_line(aes(x = year, y = acre), 
+            data = acre_new03 %>% filter(crop == "rice", year >= 2015)) + 
+  facet_wrap(~region, nrow = 2, scales = "free") + 
+    scale_x_continuous(breaks = seq(2015, 2024, 2)) +
+  scale_color_manual(name = "",
+                     values = c("rice_FALSE" = "black", 
+                                "rice_TRUE" = "#6AB8EE", 
+                                "rice_T01" = "#5FEC49", 
+                                "rice_T02" = "#E69A1F",
+                                "rice_T03" = "#E6471F"),
+                     labels = c("Observed", "Same subsidy as 2021", 
+                                "Subsidy Increase 10%", "Subsidy Increase 20%", 
+                                "Subsidy Increase 30%")) +
+  xlab("Year") + ylab("Acreage (unit = 10 km2)") + 
+  ggtitle("Province Level Rice Acreage Prediction in Northeast China") + 
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  theme_bw()
+```
+### Backup Share Data {-}
+
+Share Prediction 
+
+```{r}
+DT::datatable(
+  data.frame(share_newsame %>% filter(year > 2021) %>% select(-pred, -share), 
+           same = share_newsame %>% filter(year > 2021) %>% "$"(share) %>% round(2), 
+           increase10 = share_new01 %>% filter(year > 2021) %>% "$"(share) %>% round(2), 
+           increase20 = share_new02 %>% filter(year > 2021) %>% "$"(share) %>% round(2), 
+           increase30 = share_new03 %>% filter(year > 2021) %>% "$"(share) %>% round(2)),
+  options = list(pageLength = 9)
+)
+
+```
+
+Acreage Prediction 
+
+```{r}
+DT::datatable(
+  data.frame(acre_newsame %>% filter(year > 2021) %>% select(region, crop, year), 
+           same = acre_newsame %>% filter(year > 2021) %>% "$"(acre) %>% round(2), 
+           increase10 = acre_new01 %>% filter(year > 2021) %>% "$"(acre) %>% round(2), 
+           increase20 = acre_new02 %>% filter(year > 2021) %>% "$"(acre) %>% round(2), 
+           increase30 = acre_new03 %>% filter(year > 2021) %>% "$"(acre) %>% round(2)),
+  options = list(pageLength = 9)
+)
+
+```
+

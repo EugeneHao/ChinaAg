@@ -332,11 +332,11 @@ regdat &lt;- regdat %&gt;% filter(!region %in% c(&quot;Shandong&quot;, &quot;Heb
 preddat &lt;- preddat %&gt;% filter(!region %in% c(&quot;Shandong&quot;, &quot;Hebei&quot;))
 
 # model 1: 
-lm_corn_pf &lt;- lm(y2 ~ pfex_corn + pfex_rice + pfex_soy + I(subsidy &gt; 0) + #revex_corn +
+lm_corn_pf &lt;- lm(y2 ~ pfex_corn + pfex_rice + pfex_soy + I(subsidy &gt; 0) + # revex_corn +
                    region,
                  data = regdat %&gt;% filter(crop == &quot;corn&quot;))
 
-lm_rice_pf &lt;- lm(y2 ~ pfex_corn + pfex_rice + pfex_soy + I(subsidy &gt; 0) +# revex_rice + 
+lm_rice_pf &lt;- lm(y2 ~ pfex_corn + pfex_rice + pfex_soy + I(subsidy &gt; 0) + # revex_rice + 
                    region,
                  data = regdat %&gt;% filter(crop == &quot;rice&quot;))
 

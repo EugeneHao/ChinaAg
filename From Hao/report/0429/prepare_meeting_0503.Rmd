@@ -215,3 +215,4 @@ summary(lm_rice_rr)
 summary(lm_soy_rr)
 ```
 
+
