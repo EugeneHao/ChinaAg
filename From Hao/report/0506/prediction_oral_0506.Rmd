@@ -612,7 +612,7 @@ share_new03 <-
 ```
 
 
-```{r}
+```{r corn share}
 ggplot() + 
   geom_point(aes(x = year, y = share, color = interaction(crop, pred, sep = "_")), 
              data = share_new01 %>% filter(crop == "corn", year >= 2015)) + 
@@ -647,7 +647,7 @@ ggplot() +
   theme_bw()
 ```
 
-```{r}
+```{r soybean share}
 ggplot() + 
   geom_point(aes(x = year, y = share, color = interaction(crop, pred, sep = "_")), 
              data = share_new01 %>% filter(crop == "soybean", year >= 2015)) + 
@@ -682,7 +682,7 @@ ggplot() +
   theme_bw()
 ```
 
-```{r}
+```{r rice share }
 ggplot() + 
   geom_point(aes(x = year, y = share, color = interaction(crop, pred, sep = "_")), 
              data = share_new01 %>% filter(crop == "rice", year >= 2015)) + 
@@ -759,7 +759,7 @@ acre_new03 <-
 ```
 
 
-```{r}
+```{r corn acreage}
 ggplot() + 
   geom_point(aes(x = year, y = acre, color = interaction(crop, pred, sep = "_")), 
              data = acre_new01 %>% filter(crop == "corn", year >= 2015)) + 
@@ -793,7 +793,8 @@ ggplot() +
   theme(plot.title = element_text(hjust = 0.5)) + 
   theme_bw()
 ```
-```{r}
+
+```{r soybean acreage}
 ggplot() + 
   geom_point(aes(x = year, y = acre, color = interaction(crop, pred, sep = "_")), 
              data = acre_new01 %>% filter(crop == "soybean", year >= 2015)) + 
@@ -828,7 +829,7 @@ ggplot() +
   theme_bw()
 ```
 
-```{r}
+```{r rice acreage}
 ggplot() + 
   geom_point(aes(x = year, y = acre, color = interaction(crop, pred, sep = "_")), 
              data = acre_new01 %>% filter(crop == "rice", year >= 2015)) + 
@@ -890,5 +891,146 @@ DT::datatable(
   options = list(pageLength = 9)
 )
 
+```
+
+### Combine the share and acreage together {-}
+
+```{r}
+corn_g1 <- ggplot() + 
+  geom_point(aes(x = year, y = share, color = interaction(crop, pred, sep = "_")), 
+             data = share_new01 %>% filter(crop == "corn", year >= 2015)) + 
+  geom_point(aes(x = year, y = share, color = interaction(crop, pred, sep = "_")), 
+             data = share_new02 %>% filter(crop == "corn", year >= 2015)) + 
+  geom_point(aes(x = year, y = share, color = interaction(crop, pred, sep = "_")), 
+             data = share_new03 %>% filter(crop == "corn", year >= 2015)) + 
+  geom_point(aes(x = year, y = share, color = interaction(crop, pred, sep = "_")), 
+             data = share_newsame %>% filter(crop == "corn", year >= 2015)) + 
+  geom_line(aes(x = year, y = share), 
+            data = share_newsame %>% filter(crop == "corn", year >= 2015)) + 
+  geom_line(aes(x = year, y = share), 
+            data = share_new01 %>% filter(crop == "corn", year >= 2015)) + 
+  geom_line(aes(x = year, y = share), 
+            data = share_new02 %>% filter(crop == "corn", year >= 2015)) + 
+  geom_line(aes(x = year, y = share), 
+            data = share_new03 %>% filter(crop == "corn", year >= 2015)) + 
+  facet_wrap(~region, nrow = 2, scales = "free") + 
+    scale_x_continuous(breaks = seq(2015, 2024, 2)) +
+  scale_color_manual(name = "",
+                     values = c("corn_FALSE" = "black", 
+                                "corn_TRUE" = "#6AB8EE", 
+                                "corn_T01" = "#5FEC49", 
+                                "corn_T02" = "#E69A1F",
+                                "corn_T03" = "#E6471F"),
+                     labels = c("Observed", "Same subsidy as 2021", 
+                                "Subsidy Increase 10%", "Subsidy Increase 20%", 
+                                "Subsidy Increase 30%")) +
+  xlab("Year") + ylab("Share (%)") + 
+  ggtitle("Province Level Corn Share Prediction in Northeast China") + 
+  theme_bw() + theme(plot.title = element_text(hjust = 0.5), legend.position='none') 
+
+corn_g2 <- ggplot() + 
+  geom_point(aes(x = year, y = acre, color = interaction(crop, pred, sep = "_")), 
+             data = acre_new01 %>% filter(crop == "corn", year >= 2015)) + 
+  geom_point(aes(x = year, y = acre, color = interaction(crop, pred, sep = "_")), 
+             data = acre_new02 %>% filter(crop == "corn", year >= 2015)) + 
+  geom_point(aes(x = year, y = acre, color = interaction(crop, pred, sep = "_")), 
+             data = acre_new03 %>% filter(crop == "corn", year >= 2015)) + 
+  geom_point(aes(x = year, y = acre, color = interaction(crop, pred, sep = "_")), 
+             data = acre_newsame %>% filter(crop == "corn", year >= 2015)) + 
+  geom_line(aes(x = year, y = acre), 
+            data = acre_newsame %>% filter(crop == "corn", year >= 2015)) + 
+  geom_line(aes(x = year, y = acre), 
+            data = acre_new01 %>% filter(crop == "corn", year >= 2015)) + 
+  geom_line(aes(x = year, y = acre), 
+            data = acre_new02 %>% filter(crop == "corn", year >= 2015)) + 
+  geom_line(aes(x = year, y = acre), 
+            data = acre_new03 %>% filter(crop == "corn", year >= 2015)) + 
+  facet_wrap(~region, nrow = 2, scales = "free") + 
+    scale_x_continuous(breaks = seq(2015, 2024, 2)) +
+  scale_color_manual(name = "",
+                     values = c("corn_FALSE" = "black", 
+                                "corn_TRUE" = "#6AB8EE", 
+                                "corn_T01" = "#5FEC49", 
+                                "corn_T02" = "#E69A1F",
+                                "corn_T03" = "#E6471F"),
+                     labels = c("Observed", "Same subsidy as 2021", 
+                                "Subsidy Increase 10%", "Subsidy Increase 20%", 
+                                "Subsidy Increase 30%")) +
+  xlab("Year") + ylab("Acreage (unit = 10 km2)") + 
+  ggtitle("Province Level Corn Acreage Prediction in Northeast China") + 
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  theme_bw()
+
+ggpubr::ggarrange(corn_g1, corn_g2, ncol = 2, widths = c(4, 6))
+```
+
+
+```{r}
+soybean_g1 <- ggplot() + 
+  geom_point(aes(x = year, y = share, color = interaction(crop, pred, sep = "_")), 
+             data = share_new01 %>% filter(crop == "soybean", year >= 2015)) + 
+  geom_point(aes(x = year, y = share, color = interaction(crop, pred, sep = "_")), 
+             data = share_new02 %>% filter(crop == "soybean", year >= 2015)) + 
+  geom_point(aes(x = year, y = share, color = interaction(crop, pred, sep = "_")), 
+             data = share_new03 %>% filter(crop == "soybean", year >= 2015)) + 
+  geom_point(aes(x = year, y = share, color = interaction(crop, pred, sep = "_")), 
+             data = share_newsame %>% filter(crop == "soybean", year >= 2015)) + 
+  geom_line(aes(x = year, y = share), 
+            data = share_newsame %>% filter(crop == "soybean", year >= 2015)) + 
+  geom_line(aes(x = year, y = share), 
+            data = share_new01 %>% filter(crop == "soybean", year >= 2015)) + 
+  geom_line(aes(x = year, y = share), 
+            data = share_new02 %>% filter(crop == "soybean", year >= 2015)) + 
+  geom_line(aes(x = year, y = share), 
+            data = share_new03 %>% filter(crop == "soybean", year >= 2015)) + 
+  facet_wrap(~region, nrow = 2, scales = "free") + 
+  scale_x_continuous(breaks = seq(2015, 2024, 2)) +
+  scale_color_manual(name = "",
+                     values = c("soybean_FALSE" = "black", 
+                                "soybean_TRUE" = "#6AB8EE", 
+                                "soybean_T01" = "#5FEC49", 
+                                "soybean_T02" = "#E69A1F",
+                                "soybean_T03" = "#E6471F"),
+                     labels = c("Observed", "Same subsidy as 2021", 
+                                "Subsidy Increase 10%", "Subsidy Increase 20%", 
+                                "Subsidy Increase 30%")) +
+  xlab("Year") + ylab("Share (%)") + 
+  ggtitle("Province Level Soybean Share Prediction in Northeast China") + 
+  theme_bw() + theme(plot.title = element_text(hjust = 0.5), legend.position='none')
+
+soybean_g2 <- ggplot() + 
+  geom_point(aes(x = year, y = acre, color = interaction(crop, pred, sep = "_")), 
+             data = acre_new01 %>% filter(crop == "soybean", year >= 2015)) + 
+  geom_point(aes(x = year, y = acre, color = interaction(crop, pred, sep = "_")), 
+             data = acre_new02 %>% filter(crop == "soybean", year >= 2015)) + 
+  geom_point(aes(x = year, y = acre, color = interaction(crop, pred, sep = "_")), 
+             data = acre_new03 %>% filter(crop == "soybean", year >= 2015)) + 
+  geom_point(aes(x = year, y = acre, color = interaction(crop, pred, sep = "_")), 
+             data = acre_newsame %>% filter(crop == "soybean", year >= 2015)) + 
+  geom_line(aes(x = year, y = acre), 
+            data = acre_newsame %>% filter(crop == "soybean", year >= 2015)) + 
+  geom_line(aes(x = year, y = acre), 
+            data = acre_new01 %>% filter(crop == "soybean", year >= 2015)) + 
+  geom_line(aes(x = year, y = acre), 
+            data = acre_new02 %>% filter(crop == "soybean", year >= 2015)) + 
+  geom_line(aes(x = year, y = acre), 
+            data = acre_new03 %>% filter(crop == "soybean", year >= 2015)) + 
+  facet_wrap(~region, nrow = 2, scales = "free") + 
+  scale_x_continuous(breaks = seq(2015, 2024, 2)) +
+  scale_color_manual(name = "",
+                     values = c("soybean_FALSE" = "black", 
+                                "soybean_TRUE" = "#6AB8EE", 
+                                "soybean_T01" = "#5FEC49", 
+                                "soybean_T02" = "#E69A1F",
+                                "soybean_T03" = "#E6471F"),
+                     labels = c("Observed", "Same subsidy as 2021", 
+                                "Subsidy Increase 10%", "Subsidy Increase 20%", 
+                                "Subsidy Increase 30%")) +
+  xlab("Year") + ylab("Acreage (unit = 10 km2)") + 
+  ggtitle("Province Level Soybean Acreage Prediction in Northeast China") + 
+  theme(plot.title = element_text(hjust = 0.5)) + 
+  theme_bw()
+
+ggpubr::ggarrange(soybean_g1, soybean_g2, ncol = 2, widths = c(4, 6))
 ```
 
