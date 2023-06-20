@@ -18,7 +18,7 @@ source("../From Hao/functions/get_lag.R")
 library(tidyverse)
 
 regdat <- readRDS("../From Hao/data/dongbei/regdat_V2.rds") %>% 
-  mutate(ex_revenue = yield_lag * ex_price + subsidy_lag, 
+  dplyr::mutate(ex_revenue = yield_lag * ex_price + subsidy_lag, 
          tcost = yield_lag * cost,
          rcratio = (yield_lag * ex_price + subsidy_lag)/(yield_lag * cost)) 
 
@@ -79,6 +79,7 @@ preddat <- preddat %>%
 regdat <- regdat %>% filter(!region %in% c("Shandong", "Hebei"))
 preddat <- preddat %>% filter(!region %in% c("Shandong", "Hebei"))
 
+
 regdat_V2 <- rbind(regdat, preddat)
 
 ```
@@ -100,6 +101,7 @@ summary(lm_corn_pf)
 summary(lm_rice_pf)
 summary(lm_soy_pf)
 ```
+
 
 
 
@@ -464,11 +466,11 @@ saveRDS(randshare_new03, "/Users/sunhao/Documents/GitHub/ChinaAg/From Hao/report
 ```
 
 ```{r}
-randshare_newsame <- readRDS("/Users/sunhao/Documents/GitHub/ChinaAg/From Hao/report/0506/randshare_newsame.rds")
+randshare_newsame <- readRDS("../From Hao/report/0506/randshare_newsame.rds")
 
-randshare_new01 <- readRDS("/Users/sunhao/Documents/GitHub/ChinaAg/From Hao/report/0506/randshare_new01.rds")
-randshare_new02 <- readRDS("/Users/sunhao/Documents/GitHub/ChinaAg/From Hao/report/0506/randshare_new02.rds")
-randshare_new03 <- readRDS("/Users/sunhao/Documents/GitHub/ChinaAg/From Hao/report/0506/randshare_new03.rds")
+randshare_new01 <- readRDS("../From Hao/report/0506/randshare_new01.rds")
+randshare_new02 <- readRDS("../From Hao/report/0506/randshare_new02.rds")
+randshare_new03 <- readRDS("../From Hao/report/0506/randshare_new03.rds")
 
 LB_newsame <- randshare_newsame %>% 
   apply(., MARGIN = 1, FUN = function(x) quantile(x, prob = 0.025))
@@ -501,7 +503,7 @@ Step 5: Predict Total Acreage
 
 Load raw acreage data
 ```{r}
-rawacre <- readxl::read_xls("/Users/sunhao/Documents/GitHub/ChinaAg/From Hao/rawdata/PlantAcre0409.xls")
+rawacre <- readxl::read_xls("../From Hao/rawdata/PlantAcre0409.xls")
 
 colnames(rawacre) <- c("index", "region", "year", "value")
 # region
