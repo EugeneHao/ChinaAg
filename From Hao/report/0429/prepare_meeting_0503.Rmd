@@ -13,6 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 # prepare for meeting on 05/03
 
 library(tidyverse)
+library(stargazer)
 
 regdat <- readRDS("~/Documents/GitHub/ChinaAg/From Hao/data/dongbei/regdat_V2.rds") %>% 
   mutate(ex_revenue = yield_lag * ex_price + subsidy_lag, 
@@ -175,6 +176,8 @@ lm_soy_pf <- lm(y2 ~ pfex_corn + pfex_rice + pfex_soy + I(subsidy > 0) + # revex
 summary(lm_corn_pf)
 summary(lm_rice_pf)
 summary(lm_soy_pf)
+
+stargazer(lm_corn_pf, lm_rice_pf, lm_soy_pf, title = "Model 1 Results",column.labels = c("Corn", "Rice", "Soybean"), type = "latex", digit = 3, dep.var.caption  = "")
 
 
 # model 2: 
