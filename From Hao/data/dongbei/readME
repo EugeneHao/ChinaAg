@@ -1,0 +1,5 @@
+regdat_V2: use share 
+
+regdat_V3: use acreage
+
+regdat_V4: use share but also pretransform the important varaibles so that we do not need to calculate again in the main document 
