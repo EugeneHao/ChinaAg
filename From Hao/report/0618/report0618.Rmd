@@ -1,0 +1,92 @@
+---
+title: "Report 06/18"
+author: "Hao Sun"
+date: "6/18/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+source("/Users/sunhao/Documents/GitHub/ChinaAg/From Hao/functions/get_lag.R")
+```
+
+```{r}
+regdat <- readRDS("/Users/sunhao/Documents/GitHub/ChinaAg/From Hao/data/dongbei/regdat_V4.rds")
+preddat <- readRDS("/Users/sunhao/Documents/GitHub/ChinaAg/From Hao/data/dongbei/preddat_V4.rds") 
+
+regdat <- rbind(regdat, preddat)
+```
+
+
+## Model 1 {-}
+
+```{r}
+lm_corn_pf <- lm(y2 ~ 0 + region + pfex_corn + pfex_rice + pfex_soy + policy, 
+                 data = regdat %>% filter(crop == "corn"))
+
+lm_rice_pf <- lm(y2 ~  0 + region + pfex_corn + pfex_rice + pfex_soy + policy,
+                 data = regdat %>% filter(crop == "rice"))
+
+lm_soy_pf <- lm(y2 ~  0 + region + pfex_corn + pfex_rice + pfex_soy + policy,
+                data = regdat %>% filter(crop == "soybean"))
+
+summary(lm_corn_pf)
+summary(lm_rice_pf)
+summary(lm_soy_pf)
+```
+
+
+## Model 2 {-}
+
+```{r}
+lm_corn_pf <- lm(y2 ~ 0 + region + share_lag + pfex_corn + pfex_rice + pfex_soy + policy, 
+                 data = regdat %>% filter(crop == "corn"))
+
+lm_rice_pf <- lm(y2 ~  0 + region + share_lag + pfex_corn + pfex_rice + pfex_soy + policy,
+                 data = regdat %>% filter(crop == "rice"))
+
+lm_soy_pf <- lm(y2 ~  0 + region + share_lag + pfex_corn + pfex_rice + pfex_soy + policy,
+                data = regdat %>% filter(crop == "soybean"))
+
+summary(lm_corn_pf)
+summary(lm_rice_pf)
+summary(lm_soy_pf)
+```
+
+## Model 1.2 {-}
+
+```{r}
+regdat_V2 <- regdat %>% filter(!region %in% c("Shandong", "Hebei"))
+
+lm_corn_pf <- lm(y2 ~ 0 + region + pfex_corn + pfex_rice + pfex_soy + policy, 
+                 data = regdat_V2 %>% filter(crop == "corn"))
+  
+lm_rice_pf <- lm(y2 ~  0 + region + pfex_corn + pfex_rice + pfex_soy + policy,
+                 data = regdat_V2 %>% filter(crop == "rice"))
+
+lm_soy_pf <- lm(y2 ~  0 + region + pfex_corn + pfex_rice + pfex_soy + policy,
+                data = regdat_V2 %>% filter(crop == "soybean"))
+
+summary(lm_corn_pf)
+summary(lm_rice_pf)
+summary(lm_soy_pf)
+```
+
+
+## Model 2.2 {-}
+
+```{r}
+lm_corn_pf <- lm(y2 ~ 0 + region + share_lag + pfex_corn + pfex_rice + pfex_soy + policy, 
+                 data = regdat_V2 %>% filter(crop == "corn"))
+
+lm_rice_pf <- lm(y2 ~  0 + region + share_lag + pfex_corn + pfex_rice + pfex_soy + policy,
+                 data = regdat_V2 %>% filter(crop == "rice"))
+
+lm_soy_pf <- lm(y2 ~  0 + region + share_lag + pfex_corn + pfex_rice + pfex_soy + policy,
+                data = regdat_V2 %>% filter(crop == "soybean"))
+
+summary(lm_corn_pf)
+summary(lm_rice_pf)
+summary(lm_soy_pf)
+```
