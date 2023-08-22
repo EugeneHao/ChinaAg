@@ -1,0 +1,289 @@
+---
+title: "Report 06/18"
+author: "Xiaolan Wan"
+date: "6/18/2023"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r, echo=FALSE, message=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(stargazer)
+source("../From Hao/functions/get_lag.R")
+```
+
+```{r, echo=FALSE, message=FALSE}
+regdat <- readRDS("../From Hao/data/dongbei/regdat_V4.rds")
+preddat <- readRDS("../From Hao/data/dongbei/preddat_V4.rds") 
+regdat <- rbind(regdat, preddat)
+
+
+```
+
+
+#check profits and separate subsidy
+```{r, echo=FALSE, message = FALSE, results=FALSE}
+regdat %>% group_by(crop, year) %>% summarise(mean = mean(profit_ex - subsidy)) %>% spread(key = crop, value = mean) %>% ungroup()
+
+regdat %>% group_by(crop, year) %>% summarise(mean = mean(profit_ex)) %>% spread(key = crop, value = mean) %>% ungroup()
+
+
+#regdat %>% group_by(crop, year) %>% summarise(mean = mean(yield)) %>% spread(key = crop, value = mean) %>% ungroup()
+
+
+
+regdat <- regdat %>% arrange(region, crop, year)
+regdat$subsidy_corn <- rep(regdat$subsidy[1:21], 24)
+
+regdat$subsidy_rice <- rep(regdat$subsidy[22:42], 24)
+
+regdat$subsidy_soybean <- rep(regdat$subsidy[43:63], 24)
+
+sbsd_corn <- c(rep(0, 15),153.92,  133.46, 25, 30, 38, 68)
+sbsd_rice <- c(rep(0, 17), 132.79, 133, 136, 133)
+sbsd_soybean <- c(rep(0, 13), 60.5, 130.87, 118.58, 173.46, 320, 255, 238, 248)
+
+regdat$sbsd_corn <- rep(sbsd_corn, 24)
+regdat$sbsd_rice <- rep(sbsd_rice, 24)
+regdat$sbsd_soybean <- rep(sbsd_soybean, 24)
+
+
+
+
+market_reg <- c(rep(0, 7), rep(1, 8), rep(0, 6)) 
+
+regdat$market_reg_corn <- rep(market_reg, 24)
+
+
+regdat$sbsd_corn_scale <- as.numeric(cut(regdat$sbsd_corn, c(-1,0, 100, 200)))-1
+regdat$sbsd_rice_scale <- as.numeric(cut(regdat$sbsd_rice, c(-1,0, 100, 200)))-1
+regdat$sbsd_soybean_scale  <- as.numeric(cut(regdat$sbsd_soybean, c(-1,0, 100, 200,300,400)))-1
+
+regdat_V2 <- regdat %>% filter(!region %in% c("Shandong", "Hebei"))
+
+
+```
+
+
+
+## Model 0 {-}:  
+```{r}
+
+lm_corn_pf <- lm(y2 ~ pfex_corn + pfex_rice + pfex_soy + policy + region, 
+                 data = regdat_V2 %>% filter(crop == "corn"))
+
+lm_rice_pf <- lm(y2 ~  pfex_corn + pfex_rice + pfex_soy + policy + region,
+                 data = regdat_V2 %>% filter(crop == "rice"))
+
+lm_soy_pf <- lm(y2 ~  pfex_corn + pfex_rice + pfex_soy + policy + region ,
+                data = regdat_V2 %>% filter(crop == "soybean"))
+
+#summary(lm_corn_pf)
+#summary(lm_rice_pf)
+#summary(lm_soy_pf)
+
+stargazer(lm_corn_pf, lm_rice_pf, lm_soy_pf, column.labels = c("Corn", "Rice", "Soybean"), type = "text", digit = 3, dep.var.caption  = "", 
+          order = c("pfex_corn", "pfex_rice","pfex_soy","policy","region"),
+           covariate.labels = c("Expected  Corn Profit(subsidy included)", "Expected  Rice Profit(subsidy included)", "Expected Soybean Profit(subsidy included)","Dummy for Producer Subsidy" , "Jilin","Liaoning", "Heilongjiang","Constant"))
+
+```
+## Model 1 {-}: isolate subsidy
+
+```{r}
+lm_corn_pf <- lm(y2 ~ I(pfex_corn-subsidy_corn) + I(pfex_rice-subsidy_rice) + I(pfex_soy-subsidy_soybean) + sbsd_corn  + sbsd_soybean + year + region, 
+                 data = regdat_V2 %>% filter(crop == "corn"))
+
+
+lm_rice_pf <- lm(y2 ~  I(pfex_corn-subsidy_corn) + I(pfex_rice-subsidy_rice) + I(pfex_soy-subsidy_soybean) + sbsd_corn  + sbsd_soybean + year + region,
+                 data = regdat_V2 %>% filter(crop == "rice"))
+
+lm_soy_pf <- lm(y2 ~  I(pfex_corn-subsidy_corn) + I(pfex_rice-subsidy_rice) + I(pfex_soy-subsidy_soybean) + sbsd_corn  + sbsd_soybean + year + region ,
+                data = regdat_V2 %>% filter(crop == "soybean"))
+
+#summary(lm_corn_pf)
+#summary(lm_rice_pf)
+#summary(lm_soy_pf)
+
+stargazer(lm_corn_pf, lm_rice_pf, lm_soy_pf,  column.labels = c("Corn", "Rice", "Soybean"), type = "text", digit = 3, dep.var.caption  = "",
+          covariate.labels = c("Expected  Corn Profit", "Expected  Rice Profit", "Expected Soybean Profit","Corn Subsidy",  "Soybean Subsidy" , "Year", "Jilin","Liaoning", "Heilongjiang","Constant"))
+
+```
+
+
+## Model 2 {-}: Self subsidy
+
+```{r}
+lm_corn_pf <- lm(y2 ~ I(pfex_corn-subsidy_corn) + I(pfex_rice-subsidy_rice) + I(pfex_soy-subsidy_soybean) + sbsd_corn + year + region, 
+                 data = regdat_V2 %>% filter(crop == "corn"))
+
+
+lm_rice_pf <- lm(y2 ~  I(pfex_corn-subsidy_corn) + I(pfex_rice-subsidy_rice) + I(pfex_soy-subsidy_soybean) + sbsd_rice + year + region,
+                 data = regdat_V2 %>% filter(crop == "rice"))
+
+lm_soy_pf <- lm(y2 ~  I(pfex_corn-subsidy_corn) + I(pfex_rice-subsidy_rice) + I(pfex_soy-subsidy_soybean) + sbsd_soybean + year + region ,
+                data = regdat_V2 %>% filter(crop == "soybean"))
+
+#summary(lm_corn_pf)
+#summary(lm_rice_pf)
+#summary(lm_soy_pf)
+
+stargazer(lm_corn_pf, lm_rice_pf, lm_soy_pf,  column.labels = c("Corn", "Rice", "Soybean"), type = "text", digit = 3, dep.var.caption  = "",
+          covariate.labels = c("Expected  Corn Profit", "Expected  Rice Profit", "Expected Soybean Profit","Corn Subsidy", "Rice Subsidy", "Soybean Subsidy" , "Year", "Jilin","Liaoning", "Heilongjiang","Constant"))
+
+```
+
+## Model 3 {-}: Relative subsidy 
+
+```{r}
+lm_corn_pf <- lm(y2 ~ I(pfex_corn-subsidy_corn) + I(pfex_rice-subsidy_rice) + I(pfex_soy-subsidy_soybean) + I(sbsd_soybean - sbsd_corn) + year + region, 
+                 data = regdat_V2 %>% filter(crop == "corn"))
+
+
+lm_rice_pf <- lm(y2 ~  I(pfex_corn-subsidy_corn) + I(pfex_rice-subsidy_rice) + I(pfex_soy-subsidy_soybean) +  I(sbsd_soybean - sbsd_corn) + year +region,
+                 data = regdat_V2 %>% filter(crop == "rice"))
+
+lm_soy_pf <- lm(y2 ~  I(pfex_corn-subsidy_corn) + I(pfex_rice-subsidy_rice) + I(pfex_soy-subsidy_soybean) + I(sbsd_soybean - sbsd_corn)  + year + region ,
+                data = regdat_V2 %>% filter(crop == "soybean"))
+
+#summary(lm_corn_pf)
+#summary(lm_rice_pf)
+#summary(lm_soy_pf)
+
+stargazer(lm_corn_pf, lm_rice_pf, lm_soy_pf, column.labels = c("Corn", "Rice", "Soybean"), type = "text", digit = 3, dep.var.caption  = "",
+          covariate.labels = c("Expected  Corn Profit", "Expected  Rice Profit", "Expected Soybean Profit","Relative Soybean Subsidy", "Year","Jilin","Liaoning", "Heilongjiang","Constant"))
+
+```
+
+
+
+```{r, echo=FALSE, message=FALSE, results=FALSE}
+## Model 2 {-}: isolate profit and subsidy(correct) 
+lm_corn_pf <- lm(y2 ~ I(pfex_corn-subsidy_corn) + I(pfex_rice-subsidy_rice) + I(pfex_soy-subsidy_soybean) + sbsd_corn + sbsd_rice + sbsd_soybean+ region, 
+                 data = regdat_V2 %>% filter(crop == "corn"))
+
+
+lm_rice_pf <- lm(y2 ~  I(pfex_corn-subsidy_corn) + I(pfex_rice-subsidy_rice) + I(pfex_soy-subsidy_soybean) + sbsd_corn + sbsd_rice + sbsd_soybean + region,
+                 data = regdat_V2 %>% filter(crop == "rice"))
+
+lm_soy_pf <- lm(y2 ~  I(pfex_corn-subsidy_corn) + I(pfex_rice-subsidy_rice) + I(pfex_soy-subsidy_soybean) + sbsd_corn + sbsd_rice+ sbsd_soybean + region ,
+                data = regdat_V2 %>% filter(crop == "soybean"))
+
+#summary(lm_corn_pf)
+#summary(lm_rice_pf)
+#summary(lm_soy_pf)
+
+stargazer(lm_corn_pf, lm_rice_pf, lm_soy_pf, column.labels = c("Corn", "Rice", "Soybean"), type = "text", digit = 3, dep.var.caption  = "")
+
+```
+
+
+
+
+```{r, echo=FALSE, message=FALSE, results=FALSE}
+## Model 2 {-} :lag share
+lm_corn_pf <- lm(y2 ~ pfex_corn + pfex_rice + pfex_soy + policy + I(log(share_lag)) +region, 
+                 data = regdat_V2 %>% filter(crop == "corn"))
+
+lm_rice_pf <- lm(y2 ~  pfex_corn + pfex_rice + pfex_soy + policy + I(log(share_lag)) + region,
+                 data = regdat_V2 %>% filter(crop == "rice"))
+
+lm_soy_pf <- lm(y2 ~  pfex_corn + pfex_rice + pfex_soy + policy + I(log(share_lag)) + region ,
+                data = regdat_V2 %>% filter(crop == "soybean"))
+
+#summary(lm_corn_pf)
+#summary(lm_rice_pf)
+#summary(lm_soy_pf)
+
+stargazer(lm_corn_pf, lm_rice_pf, lm_soy_pf, column.labels = c("Corn", "Rice", "Soybean"), type = "text", digit = 3, dep.var.caption  = "")
+```
+
+
+
+```{r, echo=FALSE, message=FALSE, results=FALSE}
+## Model 3 {-}: isolate profit and subsidy(wrong) 
+lm_corn_pf <- lm(y2 ~ I(pfex_corn-subsidy_corn) + I(pfex_rice-subsidy_rice) + I(pfex_soy-subsidy_soybean) + subsidy_corn + subsidy_rice + subsidy_soybean+ region, 
+                 data = regdat_V2 %>% filter(crop == "corn"))
+
+
+lm_rice_pf <- lm(y2 ~  I(pfex_corn-subsidy_corn) + I(pfex_rice-subsidy_rice) + I(pfex_soy-subsidy_soybean) + subsidy_corn + subsidy_rice + subsidy_soybean + region,
+                 data = regdat_V2 %>% filter(crop == "rice"))
+
+lm_soy_pf <- lm(y2 ~  I(pfex_corn-subsidy_corn) + I(pfex_rice-subsidy_rice) + I(pfex_soy-subsidy_soybean) +subsidy_corn+subsidy_rice+ subsidy_soybean + region ,
+                data = regdat_V2 %>% filter(crop == "soybean"))
+
+#summary(lm_corn_pf)
+#summary(lm_rice_pf)
+#summary(lm_soy_pf)
+
+stargazer(lm_corn_pf, lm_rice_pf, lm_soy_pf, column.labels = c("Corn", "Rice", "Soybean"), type = "text", digit = 3, dep.var.caption  = "")
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r, echo=FALSE, message=FALSE, results=FALSE}
+## Model 6 {-}: isolate profit and subsidy(correct) + lag share: 6 provinces
+
+lm_corn_pf <- lm(y2 ~ I(pfex_corn-subsidy_corn) + I(pfex_rice-subsidy_rice) + I(pfex_soy-subsidy_soybean) + I(sbsd_soybean - sbsd_corn) + year + region, 
+                 data = regdat %>% filter(crop == "corn"))
+
+
+lm_rice_pf <- lm(y2 ~  I(pfex_corn-subsidy_corn) + I(pfex_rice-subsidy_rice) + I(pfex_soy-subsidy_soybean) +  I(sbsd_soybean - sbsd_corn) + year +region,
+                 data = regdat %>% filter(crop == "rice"))
+
+lm_soy_pf <- lm(y2 ~  I(pfex_corn-subsidy_corn) + I(pfex_rice-subsidy_rice) + I(pfex_soy-subsidy_soybean) + I(sbsd_soybean - sbsd_corn)  + year + region,
+                data = regdat %>% filter(crop == "soybean"))
+
+#summary(lm_corn_pf)
+#summary(lm_rice_pf)
+#summary(lm_soy_pf)
+
+stargazer(lm_corn_pf, lm_rice_pf, lm_soy_pf, column.labels = c("Corn", "Rice", "Soybean"), type = "text", digit = 3, dep.var.caption  = "")
+
+```
+
+
+
+
+
+
+```{r, echo=FALSE, message=FALSE, results=FALSE}
+## Model 7 {-}: expected profit and degree of subsidy
+lm_corn_pf <- lm(y2 ~ I(pfex_corn-subsidy_corn) + I(pfex_rice-subsidy_rice) + I(pfex_soy-subsidy_soybean) + sbsd_soybean_scale + sbsd_corn_scale  + year + region, 
+                 data = regdat_V2 %>% filter(crop == "corn"))
+
+
+lm_rice_pf <- lm(y2 ~  I(pfex_corn-subsidy_corn) + I(pfex_rice-subsidy_rice) + I(pfex_soy-subsidy_soybean) + sbsd_soybean_scale + sbsd_corn_scale  + year +  region, 
+                data = regdat_V2 %>% filter(crop == "rice"))
+
+lm_soy_pf <- lm(y2 ~  I(pfex_corn-subsidy_corn) + I(pfex_rice-subsidy_rice) + I(pfex_soy-subsidy_soybean) + sbsd_soybean_scale + sbsd_corn_scale  + year + region, data = regdat_V2 %>% filter(crop == "soybean"))
+
+#summary(lm_corn_pf)
+#summary(lm_rice_pf)
+#summary(lm_soy_pf)
+
+stargazer(lm_corn_pf, lm_rice_pf, lm_soy_pf, column.labels = c("Corn", "Rice", "Soybean"), type = "text", digit = 3, dep.var.caption  = "")
+
+```
+
+
+
+
+
+
+
+
