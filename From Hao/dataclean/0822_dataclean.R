@@ -1,7 +1,8 @@
 # now we want to use 18 different provinces 
 
 library(tidyverse)
-
+setwd("/Users/sunhao/Documents/GitHub/ChinaAg/")
+source("From Hao/functions/get_lag.R")
 
 ### Data 1: Cost Data  (including yield, sale price, cost) ####
 
@@ -17,9 +18,9 @@ rawcost$region <- factor(rawcost$region,
                                     "Shaanxi", "Heilongjiang"))
 # (Note: have not sorted by year yet ! )
 
-costdat <- rawcost %>% filter(index %in% c("主产品产量（千克）", "平均出售价格（元）", "总成本（元）"))
+costdat <- rawcost %>% filter(index %in% c("主产品产量（千克）", "土地成本（元）", "平均出售价格（元）", "物质与服务费用（元）"))  # "总成本（元）"
 
-costdat$index <- factor(costdat$index, labels = c("yield", "price", "cost"))
+costdat$index <- factor(costdat$index, labels = c("yield", "landcost", "price", "servicecost"))
 
 ricecateg <- c("中籼稻", "早籼稻", "晚籼稻", "粳稻")
 
@@ -31,11 +32,11 @@ gg <- costdat %>% group_by(region, index, crop, year) %>%
   arrange(region, index, crop, year) %>% ungroup()
 gg$year <- as.numeric(gg$year)
 
-# 18 provinces, 3 indexes, 4 crops, 21 years 
-newcostdat <- data.frame(region = rep(unique(gg$region), each = 3 * 4 * 21),
+# 18 provinces, 4 indexes, 4 crops, 21 years 
+newcostdat <- data.frame(region = rep(unique(gg$region), each = 4 * 4 * 21),
                          index = rep(rep(unique(gg$index), each = 4 * 21), 18), 
-                         crop = rep(rep(unique(gg$crop), each = 21), 18 * 3), 
-                         year = rep(2001:2021, 18 * 3 * 4))
+                         crop = rep(rep(unique(gg$crop), each = 21), 18 * 4), 
+                         year = rep(2001:2021, 18 * 4 * 4))
 newcostdat <- left_join(newcostdat, gg)
 
 
@@ -44,8 +45,8 @@ newcostdat <- left_join(newcostdat, gg)
 avgcost <- readxl::read_xls("/Users/sunhao/Documents/GitHub/ChinaAg/From Hao/rawdata/update/costavg0821.xls")
 names(avgcost) <- c("index", "region", "crop", "year", "avgvalue")
 
-avgcost <- avgcost %>% filter(index %in% c("主产品产量（千克）", "平均出售价格（元）", "总成本（元）"))
-avgcost$index <- factor(avgcost$index, labels = c("yield", "price", "cost"))
+avgcost <- avgcost %>% filter(index %in% c("主产品产量（千克）", "土地成本（元）", "平均出售价格（元）", "物质与服务费用（元）"))
+avgcost$index <- factor(avgcost$index, labels = c("yield", "landcost", "price", "servicecost"))
 
 avgcost$crop <- factor(avgcost$crop, labels = c("soybean", "wheat", "corn", "rice"))
 avgcost$avgvalue <- as.numeric(avgcost$avgvalue)
@@ -62,7 +63,9 @@ for(i in 1:nrow(newcostdat))
   }
 }
 
-costdat <- newcostdat %>% select(-avgvalue) %>% spread(key = index, value = avg) 
+# update 2023-09-03
+costdat <- newcostdat %>% select(-avgvalue) %>% spread(key = index, value = avg) %>% 
+  mutate(cost = (landcost + servicecost)/yield) %>% select(-servicecost, -landcost)
 
 
 
@@ -188,8 +191,11 @@ subsidy$subsidy[subsidy$year == 2021] <- subsidy$subsidy[subsidy$year == 2021] +
 multidat <- multidat %>% left_join(., subsidy)
 multidat$subsidy[is.na(multidat$subsidy)] <- 0
 
-# change cost unit to yuan/kg 
-multidat$cost <- multidat$cost/multidat$yield
+# we only consider subsidy in the northeast China  (update 2023-09-03)
+multidat$subsidy[!multidat$region %in% c("Heilongjiang", "Liaoning", "Jilin", "Neimenggu")] <- 0
+
+# change cost unit to yuan/kg (update 2023-09-03)
+# multidat$cost <- multidat$cost/50    # no need now 
 
 # important! arrange before we calculate lag 
 multidat <- multidat %>% arrange(region, crop)
@@ -258,3 +264,5 @@ regdat <- multidat %>% filter(year < 2021)
 
 saveRDS(regdat, "From Hao/data/18provinces/regdat_18prov.rds")
 saveRDS(preddat, "From Hao/data/18provinces/preddat_18prov.rds")
+
+write.csv(multidat, "From Hao/data/18provinces/alldata.csv")
