@@ -47,14 +47,14 @@ cost$crop[cost$crop == "玉米"] <- "corn"
 cost$crop[cost$crop == "大豆"] <- "soy"
 
 cost$index <- factor(cost$index, 
-                     labels = c("yield", "laber_cost", "soil_cost", "saleprice", "total_cost", "service_cost"))
+                     labels = c("yield", "labor_cost", "land_cost", "saleprice", "total_cost", "service_cost"))
 
 cost <- cost %>% unite("new_key", crop, index, sep = "_") %>% 
   tidyr::spread(key = new_key, value) 
 
 cost_pr <- cost %>% select("region", "year", 
-                           "corn_laber_cost", "corn_service_cost", "corn_soil_cost", 
-                           "soy_laber_cost", "soy_service_cost", "soy_soil_cost")
+                           "corn_labor_cost", "corn_service_cost", "corn_land_cost", 
+                           "soy_labor_cost", "soy_service_cost", "soy_land_cost")
 
 ### 2.2 yield of corn and soybean ####
 
@@ -66,7 +66,7 @@ yield_lag$crop[yield_lag$crop == "玉米"] <- "corn"
 yield_lag$crop[yield_lag$crop == "大豆"] <- "soy"
 
 yield_lag$index <- factor(yield_lag$index, 
-                     labels = c("yield", "laber_cost", "soil_cost", "saleprice", "total_cost", "service_cost"))
+                     labels = c("yield", "labor_cost", "land_cost", "saleprice", "total_cost", "service_cost"))
 
 yield <- yield_lag %>% filter(index == "yield") %>% arrange(region, crop, year)
 
@@ -135,7 +135,7 @@ cost_lag$crop[cost_lag$crop == "玉米"] <- "corn"
 cost_lag$crop[cost_lag$crop == "大豆"] <- "soy"
 
 cost_lag$index <- factor(cost_lag$index, 
-                     labels = c("yield", "laber_cost", "soil_cost", "saleprice", "total_cost", "service_cost"))
+                     labels = c("yield", "labor_cost", "land_cost", "saleprice", "total_cost", "service_cost"))
 
 cost_lag <- cost_lag %>% unite("new_key", crop, index, sep = "_") %>% 
   tidyr::spread(key = new_key, value) 
@@ -158,10 +158,14 @@ subsidy <- readRDS("From Hao/data/heilongjiang/dat.rds") %>% select(crop, year, 
 city <- left_join(city_raw, cost_pr) %>% 
   left_join(., yield_pr) %>% left_join(., price_pr) %>% left_join(., price_lag_pr) %>% 
   left_join(., subsidy) 
-  # mutate(corn_profit_lag = corn_yield * corn_sp_lag - corn_laber_cost - corn_service_cost - corn_soil_cost, 
-  #        soy_profit_lag = soy_yield * soy_sp_lag - soy_laber_cost - soy_service_cost - soy_soil_cost, 
-  #        corn_profit_ex = corn_yield * corn_futureprice - corn_laber_cost - corn_service_cost - corn_soil_cost, 
-  #        soy_profit_ex = soy_yield * soy_futureprice - soy_laber_cost - soy_service_cost - soy_soil_cost)
+
+names(city)[1] <- "province"
+
+  # mutate(corn_profit_lag = corn_yield * corn_sp_lag - corn_labor_cost - corn_service_cost - corn_land_cost, 
+  #        soy_profit_lag = soy_yield * soy_sp_lag - soy_labor_cost - soy_service_cost - soy_land_cost, 
+  #        corn_profit_ex = corn_yield * corn_futureprice - corn_labor_cost - corn_service_cost - corn_land_cost, 
+  #        soy_profit_ex = soy_yield * soy_futureprice - soy_labor_cost - soy_service_cost - soy_land_cost)
 
 
+saveRDS(city, "From Hao/data/citylevel/cityclean.rds")
 
