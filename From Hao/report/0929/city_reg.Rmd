@@ -1,0 +1,22 @@
+---
+title: "Regression with city-level data"
+author: "Hao Sun"
+date: "2023-09-30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+
+```{r}
+city <- readRDS("../../data/citylevel/citycomb.rds") %>% 
+  na.omit() %>% 
+  mutate(y_corn = log(share_corn) - log(1 - share_corn - share_soy), 
+         y_soy = log(share_soy) - log(1 - share_corn - share_soy))
+
+
+```
+
