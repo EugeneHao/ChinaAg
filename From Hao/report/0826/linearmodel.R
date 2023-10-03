@@ -6,19 +6,19 @@ preddat <- readRDS("/Users/sunhao/Documents/GitHub/ChinaAg/From Hao/data/18provi
 
 regdat <- rbind(regdat, preddat)
 
-lm_corn_pf <- lm(y2 ~ 0 + region + pfex_corn + pfex_rice + pfex_soy + subsidy_corn + subsidy_rice + subsidy_soy + 
-                   stateprop, data = regdat %>% filter(crop == "corn"))
+lm_corn_pf <- lm(y2 ~ 0 + pfex_corn + pfex_rice + pfex_soy + subsidy_corn + subsidy_rice + subsidy_soy + 
+                   stateprop + region, data = regdat %>% filter(crop == "corn"))
 
 summary(lm_corn_pf)
 
 
-lm_soy_pf <- lm(y2 ~ 0 + region + pfex_corn + pfex_rice + pfex_soy + subsidy_corn + subsidy_rice + subsidy_soy + 
-                   stateprop, data = regdat %>% filter(crop == "soybean"))
+lm_soy_pf <- lm(y2 ~ 0  + pfex_corn + pfex_rice + pfex_soy + subsidy_corn + subsidy_rice + subsidy_soy + 
+                   stateprop+ region, data = regdat %>% filter(crop == "soybean"))
 
 summary(lm_soy_pf)
 
-lm_rice_pf <- lm(y2 ~ 0 + region + pfex_corn + pfex_rice + pfex_soy + subsidy_corn + subsidy_rice + subsidy_soy + 
-                  stateprop, data = regdat %>% filter(crop == "rice"))
+lm_rice_pf <- lm(y2 ~ 0 + pfex_corn + pfex_rice + pfex_soy + subsidy_corn + subsidy_rice + subsidy_soy + 
+                  stateprop + region, data = regdat %>% filter(crop == "rice"))
 
 summary(lm_rice_pf)
 
