@@ -12,11 +12,123 @@ library(tidyverse)
 
 
 ```{r}
-city <- readRDS("../../data/citylevel/citycomb.rds") %>% 
+subsidy_lag <- readRDS("/Users/sunhao/Documents/GitHub/ChinaAg/From Hao/data/heilongjiang/dat.rds") %>% 
+  select(crop, year, subsidy_mu_lag) %>% 
+  "colnames<-"(c("crop", "year", "subsidy_lag")) %>% 
+  filter(crop %in% c("corn", "soybean"), year %in% 2010:2021) %>% 
+  spread(key = crop, value = subsidy_lag) %>% 
+  "names<-"(c("year", "corn_subsidy_lag", "soy_subsidy_lag"))
+
+city <- readRDS("../../data/citylevel/citycomb.rds") 
+city$share_corn[city$share_corn <= 0.01] <- 0.01
+city$share_soy[city$share_soy <= 0.01] <- 0.01
+
+city <- city %>% 
   na.omit() %>% 
   mutate(y_corn = log(share_corn) - log(1 - share_corn - share_soy), 
-         y_soy = log(share_soy) - log(1 - share_corn - share_soy))
+         y_soy = log(share_soy) - log(1 - share_corn - share_soy), 
+         corn_income_fp = corn_yield_lag * corn_futureprice - corn_labor_cost - corn_service_cost - corn_land_cost,
+         corn_income_sp = corn_yield_lag * corn_sp_lag - corn_labor_cost - corn_service_cost - corn_land_cost,
+         soy_income_fp = soy_yield_lag * soy_futureprice - soy_labor_cost - soy_service_cost - soy_land_cost, 
+         soy_income_sp = soy_yield_lag * soy_sp_lag - soy_labor_cost - soy_service_cost - soy_land_cost, 
+         policy16_prop = policy16 * stateprop, 
+         policy19_prop = policy19 * stateprop, 
+         policy21_prop = policy21 * stateprop) %>% 
+  mutate(y_corn = log(share_corn) - log(1 - share_corn - share_soy), 
+         y_soy = log(share_soy) - log(1 - share_corn- share_soy),
+         share_corn_log = log(share_corn), 
+         share_soy_log = log(share_soy)) %>% 
+  left_join(., subsidy_lag)
+
+names(city)
+```
+
+```{r}
+city %>% 
+  group_by(province, year) %>%
+  summarise(share_mean = mean(share_corn), 
+            share_sd = mean(share_soy)) %>% 
+  filter(province == "Heilongjiang") %>%
+  View()
+```
+
+
+```{r}
+lm_corn <- lm(y_corn ~ corn_income_fp + soy_income_fp + corn_subsidy_lag + soy_subsidy_lag + 
+       corn_weight + soy_weight + stateprop + corn_yield_lag + soy_yield_lag + 
+       policy16_prop + policy19_prop + policy21_prop, data = city)
+
+lm_corn %>% summary()
+```
+
+
+```{r}
+lm_corn_V2 <- lm(share_corn_log ~ corn_income_fp + soy_income_fp + corn_subsidy_lag + soy_subsidy_lag + 
+       corn_weight + soy_weight + stateprop + corn_yield_lag + soy_yield_lag + 
+       policy16_prop + policy19_prop + policy21_prop, data = city)
+
+lm_corn_V2 %>% summary()
+```
+
+```{r}
+lm_soy <- 
+  lm(y_soy ~ corn_income_fp + soy_income_fp + corn_subsidy_lag + soy_subsidy_lag + 
+       corn_weight + soy_weight + stateprop + corn_yield_lag + soy_yield_lag + 
+       policy16_prop + policy19_prop + policy21_prop, data = city)
+
+lm_soy %>% summary()
+```
+
+
+```{r}
+province_basic <- city %>% select(-city, -acre_total, -acre_corn, -acre_soy, -share_corn, -share_soy,
+                -share_corn_log, -share_soy_log, -corn_yield, 
+                -corn_yield_lag, -soy_yield, -soy_yield_lag, -y_corn, -y_soy) %>% unique()
+
+province <- 
+  city %>% group_by(province, year) %>% 
+  summarise(acre_total_all = sum(acre_total), 
+            acre_corn_all = sum(acre_corn), 
+            acre_soy_all = sum(acre_soy), 
+            corn_yield_all = mean(corn_yield), 
+            soy_yield_all = mean(soy_yield), 
+            corn_yield_lag_all = mean(corn_yield_lag),
+            soy_yield_lag_all = mean(soy_yield_lag)) %>%
+  ungroup() %>% 
+  left_join(., province_basic) %>% 
+  mutate(share_corn = acre_corn_all/acre_total_all, 
+         share_soy = acre_soy_all/acre_total_all) %>% 
+  mutate(y_corn = log(share_corn) - log(1 - share_corn - share_soy), 
+         y_soy = log(share_soy) - log(1 - share_corn- share_soy))
+```
+
+```{r}
+lm_corn_prov <- 
+  lm(y_corn ~ corn_income_sp + soy_income_sp +
+       corn_income_fp + soy_income_fp + corn_subsidy_lag + soy_subsidy_lag + 
+       corn_weight + soy_weight + stateprop + corn_yield_all + soy_yield_all + 
+       policy16_prop + policy19_prop + policy21_prop, data = province)
+
+lm_corn_prov %>% summary()
+```
+
+```{r}
+lm_soy_prov <- 
+  lm(y_soy ~ corn_income_sp + soy_income_sp +
+       corn_income_fp + soy_income_fp + corn_subsidy_lag + soy_subsidy_lag + 
+       corn_weight + soy_weight + stateprop + corn_yield_all + soy_yield_all + 
+       policy16_prop + policy19_prop + policy21_prop, data = province)
+
+lm_soy_prov %>% summary()
+```
+
+
+### Clogit {-}
+
+```{r}
+library(survival)
 
 
 ```
+
 

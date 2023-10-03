@@ -169,3 +169,7 @@ names(city)[1] <- "province"
 
 saveRDS(city, "From Hao/data/citylevel/cityclean.rds")
 
+
+# 3. Get the raw long data ##### 
+
+
