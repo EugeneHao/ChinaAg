@@ -456,13 +456,6 @@ acre$policy19 <- rep(c(0,0,0,0,0,0,0,0,0,1,1,0), times = 8)
 acre$policy21 <- rep(c(0,0,0,0,0,0,0,0,0,0,0,-1), times = 8)
 
 
-
-
-#check data
-acre %>% group_by(region) %>% summarise(weight_corn = mean(corn_weight),
-                                        weight_soy = mean(soy_weight),
-                                        weight_state = mean(stateprop))
-
 #select variables
 colnames(acre)[1]<- "province"
 
@@ -470,23 +463,6 @@ acre <- acre %>% select(province, year, corn_weight, soy_weight, acre_state, sta
                         policy_soy,target_soy,policy16,policy19,policy21) %>% 
   filter(province != "Nation") %>% 
   as.data.frame()
-
-
-
-#save data
-write.csv(acre, "Xiaolan/data clean/province_weight.csv")
-
-#merge with clean data
-cityclean <- readRDS("~/Documents/GitHub/ChinaAg/From Hao/data/citylevel/cityclean.rds")
-
-citycomb <- cityclean %>% filter(year > 2009) %>% #filter out years before 2010
-  left_join(acre, by = c("province","year"))
-
-saveRDS(citycomb, "Xiaolan/data clean/citycomb.rds")
-
-
-
-
 
 #national price
 price <- readxl::read_xls("From Hao/rawdata/全国平均价格.xls")
@@ -500,7 +476,19 @@ price <- price %>% select(c(year,soy,corn)) %>%
   mutate(soy_nationprice = soy/50,
          corn_nationprice = corn/50) %>% select(year, soy_nationprice,corn_nationprice) 
 
-citycomb <- citycomb %>% left_join(price, by = "year") %>% 
-  as.data.frame()
+#merge data
+cityclean <- readRDS("~/Documents/GitHub/ChinaAg/From Hao/data/citylevel/cityclean.rds")
 
+citycomb <- cityclean %>% filter(year > 2009) %>% 
+  left_join(acre, by = c("province","year")) %>% 
+  left_join(price, by = "year")
+
+
+#check data
+acre %>% group_by(province) %>% summarise(weight_corn = mean(corn_weight),
+                                        weight_soy = mean(soy_weight),
+                                        weight_state = mean(stateprop))
+
+
+#merge with clean dat
 saveRDS(citycomb, "Xiaolan/data clean/citycomb.rds")
