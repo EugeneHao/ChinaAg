@@ -211,7 +211,7 @@ multidat$revenue_sp_lag <- get_lag(multidat, "revenue_sp", 1, weight = 1)
 multidat$revenue_ex_lag <- get_lag(multidat, "revenue_ex", 1, weight = 1)
 
 # arrange the data set 
-multidat <- multidat %>% arrange(region, crop, year) %>% select(-other)
+multidat <- multidat %>% arrange(region, crop, year) %>% select(-other) <- multidat %>% arrange(region, crop, year) %>% select(-other)
 
 
 multidat_wide <- multidat %>%
@@ -219,7 +219,13 @@ multidat_wide <- multidat %>%
               names_glue = "{crop}_{.value}") %>% 
   mutate(other_share = 100 - corn_share - soybean_share - rice_share - wheat_share)
 
+# add back acreage 
 
+multidat_wide <- multidat_wide %>% 
+  left_join(., 
+            acredat %>% select(region, year, total, corn, soybean, rice, wheat) %>% 
+              "names<-"(c("region", "year", "total_acreage", "corn_acreage", "soybean_acreage",
+                          "rice_acreage", "wheat_acreage"))) 
 
 saveRDS(multidat, "From Hao/data/18provinces_1002/multidat_long.rds")
 saveRDS(multidat_wide, "From Hao/data/18provinces_1002/multidat_wide.rds")
