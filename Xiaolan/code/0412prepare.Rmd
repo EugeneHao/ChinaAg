@@ -1,0 +1,158 @@
+---
+title: "0412prepare"
+author: "Xiaolan"
+date: "2024-04-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## corn share 
+```{r}
+library(tidyverse)
+library(purrr)
+citycomb <- readRDS("~/Documents/GitHub/ChinaAg/Xiaolan/data clean/citycomb.rds")
+
+city_corn <- citycomb %>% 
+  mutate(share_corn100 = round(share_corn*100, digits = 1)) %>% 
+  select(province,city, year, share_corn100) %>% 
+  spread(year, share_corn100) 
+
+```
+
+
+## soy share
+```{r}
+city_soy <- citycomb %>% 
+  mutate(share_soy100 = round(share_soy*100, digits = 1)) %>% 
+  select(province,city, year, share_soy100) %>% 
+  spread(year, share_soy100) 
+
+```
+
+
+## change in corn share 
+```{r}
+provinces <- c("Heilongjiang","Inner mongolia","Jilin","Liaoning","Shandong","Henan","Hebei") 
+
+change_corn <- function(province_name){
+  city_corn %>% 
+    filter(province == province_name) %>% 
+    mutate(
+       r10 = `2010`,
+  r11 = `2011` - `2010`,
+  r12 = `2012` - `2011`, 
+  r13 = `2013` - `2012`, 
+  r14 = `2014` - `2013`, 
+  r15 = `2015` - `2014`, 
+  r16 = `2016` - `2015`, 
+  r17 = `2017` - `2016`, 
+  r18 = `2018` - `2017`, 
+  r19 = `2019` - `2018`, 
+  r20 = `2020` - `2019`, 
+  r21 = `2021` - `2020` 
+    ) %>% select(city, r10:r21) %>% as.data.frame()
+}
+
+
+# change_corn("Heilongjiang")
+# change_corn("Jilin")
+# change_corn("Liaoning")
+# change_corn("Inner mongolia")
+# change_corn("Henan")
+# change_corn("Hebei")
+# change_corn("Shandong")
+
+```
+
+
+
+## change in soy share 
+```{r}
+provinces <- c("Heilongjiang","Inner mongolia","Jilin","Liaoning","Shandong","Henan","Hebei") 
+
+change_soy <- function(province_name){
+  city_corn %>% 
+    filter(province == province_name) %>% 
+    mutate(
+       r10 = `2010`,
+  r11 = `2011` - `2010`,
+  r12 = `2012` - `2011`, 
+  r13 = `2013` - `2012`, 
+  r14 = `2014` - `2013`, 
+  r15 = `2015` - `2014`, 
+  r16 = `2016` - `2015`, 
+  r17 = `2017` - `2016`, 
+  r18 = `2018` - `2017`, 
+  r19 = `2019` - `2018`, 
+  r20 = `2020` - `2019`, 
+  r21 = `2021` - `2020` 
+    ) %>% select(province, city, r10:r21) %>% as.data.frame()
+}
+
+
+# change_soy("Heilongjiang")
+# change_soy("Jilin")
+# change_soy("Liaoning")
+# change_soy("Inner mongolia")
+# change_soy("Henan")
+# change_soy("Hebei")
+# change_soy("Shandong")
+```
+
+
+### print results for corn
+```{r}
+#Heilongjiang
+city_corn %>% filter(province == "Heilongjiang") %>% as.data.frame()
+change_corn("Heilongjiang")
+#Jilin
+city_corn %>% filter(province == "Jilin") %>% as.data.frame()
+change_corn("Jilin")
+#Liaoning
+city_corn %>% filter(province == "Liaoning") %>% as.data.frame()
+change_corn("Liaoning")
+#Inner mongolia
+city_corn %>% filter(province == "Inner mongolia") %>% as.data.frame()
+change_corn("Inner mongolia")
+#Henan
+city_corn %>% filter(province == "Henan") %>% as.data.frame()
+change_corn("Henan")
+#Hebei
+city_corn %>% filter(province == "Hebei") %>% as.data.frame()
+change_corn("Hebei")
+#Shandong
+city_corn %>% filter(province == "Shandong") %>% as.data.frame()
+change_corn("Shandong")
+```
+
+
+### print results for soy
+```{r}
+#Heilongjiang
+city_soy %>% filter(province == "Heilongjiang") %>% as.data.frame()
+change_soy("Heilongjiang")
+#Jilin
+city_soy %>% filter(province == "Jilin") %>% as.data.frame()
+change_soy("Jilin")
+#Liaoning
+city_soy %>% filter(province == "Liaoning") %>% as.data.frame()
+change_soy("Liaoning")
+#Inner mongolia
+city_soy %>% filter(province == "Inner mongolia") %>% as.data.frame()
+change_soy("Inner mongolia")
+#Henan
+city_soy %>% filter(province == "Henan") %>% as.data.frame()
+change_soy("Henan")
+#Hebei
+city_soy %>% filter(province == "Hebei") %>% as.data.frame()
+change_soy("Hebei")
+#Shandong
+city_soy %>% filter(province == "Shandong") %>% as.data.frame()
+change_soy("Shandong")
+```
+
+

@@ -1,0 +1,593 @@
+---
+title: "041424clean_city"
+author: "Xiaolan"
+date: "2024-04-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+setwd("/Users/xiaolanwan/Documents/GitHub/ChinaAg/")
+
+```
+
+## Heilongjiang
+```{r}
+hlj <- readxl::read_xls("~/Documents/GitHub/ChinaAg/Xiaolan/raw data/citydata/heilongjiang/hlj.xls")
+names(hlj) <- c("index", "region", "year", "value")
+hlj$year <- as.numeric(hlj$year)
+hlj$value <- as.numeric(hlj$value)
+
+#merge with missing find
+hljmiss <- readxl::read_xls("~/Documents/GitHub/ChinaAg/Xiaolan/raw data/citydata/heilongjiang/hljmissing.xls")
+names(hljmiss) <- c("index", "region", "year", "value")
+hljmiss$year <- as.numeric(hljmiss$year)
+hljmiss$value <- as.numeric(hljmiss$value)
+
+##join missing
+hlj <- hlj %>% left_join(hljmiss, by = c("index", "region", "year"), suffix = c("_A", "_B")) %>% 
+  mutate(value = coalesce(value_A, value_B)) %>% 
+  select(index, region, year, value)
+
+##wide format
+hlj <- hlj %>% tidyr::spread(key = index, value) 
+names(hlj) <- c("region", "year", "acre_soy_ha","acre_wheat_ha","acre_total_ha",
+                "acre_oil_ha", "acre_corn_ha", "acre_fruit_ha", "acre_rice_ha", "acre_vege_ha")
+hlj$province <- rep("Heilongjiang", times = 195)
+
+
+##translate regions: attention to order!
+unique(hlj$region)
+trans <- c("qitaihe", "yichun", "jiamusi", "shuangyashan", "haerbin","daxinganling",
+           "daqing","mudanjiang","suihua","jixi","hegang","heihe","qiqihaer")
+hlj$city <- rep(trans, each = 15)
+
+
+#change unit to "千公顷" 
+hlj <- hlj %>% mutate(acre_soy = acre_soy_ha/1000,
+                      acre_wheat = acre_wheat_ha/1000,
+                      acre_total = acre_total_ha/1000,
+                      acre_oil = acre_oil_ha/1000,
+                      acre_corn = acre_corn_ha/1000,
+                      acre_fruit = acre_fruit_ha/1000,
+                      acre_rice = acre_rice_ha/1000,
+                      acre_vege = acre_vege_ha/1000)
+
+#filter small corn acreage
+hlj %>% group_by(city) %>% summarise(corn_acre = mean(acre_corn),
+                                     soy_acre = mean(acre_soy)) %>% arrange(corn_acre)
+#daxinganling is the smallest in corn, and can be removed
+
+#compute acreage share
+hlj <- hlj %>% mutate(share_soy = acre_soy/acre_total,
+                      share_wheat = acre_wheat/acre_total,
+                      share_oil = acre_oil/acre_total,
+                      share_corn = acre_corn/acre_total,
+                      share_fruit = acre_fruit/acre_total,
+                      share_rice = acre_rice/acre_total,
+                      share_vege = acre_vege/acre_total)
+
+## select variables
+hlj <- hlj %>% select(province, city, year, region, acre_total,
+                      acre_corn,acre_soy,share_corn,share_soy,
+                      acre_rice,acre_wheat,share_rice,share_wheat)
+
+```
+
+
+## Inner mongolia
+```{r}
+nmg <- readxl::read_xls("~/Documents/GitHub/ChinaAg/Xiaolan/raw data/citydata/neimenggu/nmg.xls")
+nmg_yield <- readxl::read_xls("~/Documents/GitHub/ChinaAg/Xiaolan/raw data/citydata/neimenggu/yield.xls")
+
+names(nmg) <- c("index", "region", "year", "value")
+names(nmg_yield) <- c("index", "region", "year", "value")
+
+
+nmg$year <- as.numeric(nmg$year)
+nmg$value <- as.numeric(nmg$value)
+
+nmg_yield$year <- as.numeric(nmg_yield$year)
+nmg_yield$value <- as.numeric(nmg_yield$value)
+
+nmg <- nmg %>% tidyr::spread(key = index, value) 
+nmg_yield <- nmg_yield %>% tidyr::spread(key = index, value) 
+
+names(nmg) <- c("region","year","acre_total","prod_wheat","prod_oil","prod_corn","prod_bean")
+names(nmg_yield) <- c("region", "year", "soyacre","corn_yield","bean_yield","beanacre")
+
+nmg_yield <- nmg_yield %>% select(-region)
+
+#compute acre share:
+nmg <- nmg %>% left_join(nmg_yield, by = c("year")) 
+
+nmg <- nmg %>% 
+  mutate(acre_corn = prod_corn/corn_yield*10000,
+         acre_bean = prod_bean/bean_yield*10000,
+         acre_soy = acre_bean * soyacre/beanacre,
+         share_corn = acre_corn/acre_total,
+         share_soy = acre_soy/acre_total)
+
+##translate city names
+unique(nmg$region)
+
+trans <- c("wulanchabu", "wuhai", "xingan", "baotou", "hulunbeier","huhehaote",
+           "bayanzhuoer","chifeng","tongliao","eerduosi","xilinguole","alashanmeng")
+nmg$city <- rep(trans, each = 15)
+
+nmg$province <- rep("Inner mongolia", times = 180)
+
+nmg <- nmg %>% select(province, city, year, region, acre_total, acre_corn, acre_soy, share_corn, share_soy) %>% 
+  filter(city != "alashanmeng")   #filter out small city
+
+## wheat,rice are missing
+nmg <- nmg %>% select(province, city, year, region, acre_total,
+                      acre_corn,acre_soy,share_corn,share_soy)
+
+```
+    
+
+## Jilin
+```{r}
+jl <- readxl::read_xls("~/Documents/GitHub/ChinaAg/Xiaolan/raw data/citydata/jilin/jl.xls")
+names(jl) <- c("index", "region", "year", "value")
+jl$year <- as.numeric(jl$year)
+jl$value <- as.numeric(jl$value)
+
+##wide format
+jl <- jl %>% tidyr::spread(key = index, value) 
+names(jl) <- c("region", "year", "acre_soy_ha","acre_total_ha", "acre_rice_ha",
+               "acre_oil_ha", "acre_corn_ha", "acre_fruit_ha",  "acre_vege_ha")
+jl$province <- rep("Jilin", times = 135)
+
+
+##translate regions: attention to order!
+unique(jl$region)
+trans <- c("jilin", "siping", "yanbian", "songyuan", "baicheng","baishan",
+           "liaoyuan","tonghua","changchun")
+jl$city <- rep(trans, each = 15)
+
+
+#change unit to "千公顷" 
+jl <- jl %>% mutate(acre_soy = acre_soy_ha/1000,
+                    acre_total = acre_total_ha/1000,
+                    acre_oil = acre_oil_ha/1000,
+                    acre_corn = acre_corn_ha/1000,
+                    acre_fruit = acre_fruit_ha/1000,
+                    acre_rice = acre_rice_ha/1000,
+                    acre_vege = acre_vege_ha/1000)
+
+#compute acreage share
+jl <- jl %>% mutate(share_soy = acre_soy/acre_total,
+                    share_oil = acre_oil/acre_total,
+                    share_corn = acre_corn/acre_total,
+                    share_fruit = acre_fruit/acre_total,
+                    share_rice = acre_rice/acre_total,
+                    share_vege = acre_vege/acre_total)
+
+jl <- jl %>% select(province, city, year, region, acre_total,
+                      acre_corn,acre_soy,share_corn,share_soy,
+                      acre_rice,share_rice)
+
+#JL wheat is missing
+
+```
+
+
+## Liaoning
+```{r}
+ln <- readxl::read_xls("~/Documents/GitHub/ChinaAg/Xiaolan/raw data/citydata/liaoning/ln.xls")
+names(ln) <- c("index", "region", "year", "value")
+ln$year <- as.numeric(ln$year)
+ln$value <- as.numeric(ln$value)
+
+##wide format
+ln <- ln %>% tidyr::spread(key = index, value)
+names(ln) <- c("region", "year","acre_total", "acre_soy","acre_wheat","acre_rice",
+               "acre_oil", "acre_corn","acre_vege")
+ln$province <- rep("Liaoning", times = 210)
+
+##translate regions: attention to order!
+unique(ln$region)
+trans <- c("dandong", "dalian", "fushun", "chaoyang", "benxi","shenyang",
+           "panjin","yingkou","huludao","liaoyang","tieling","jinzhou","buxin","anshan")
+ln$city <- rep(trans, each = 15)
+
+#compute acreage share
+ln <- ln %>% mutate(share_soy = acre_soy/acre_total,
+                    share_wheat = acre_wheat/acre_total,
+                    share_oil = acre_oil/acre_total,
+                    share_corn = acre_corn/acre_total,
+                    share_rice = acre_rice/acre_total,
+                    share_vege = acre_vege/acre_total)
+
+ln <- ln %>% select(province, city, year, region, acre_total,
+                      acre_corn,acre_soy,share_corn,share_soy,
+                      acre_rice,acre_wheat,share_rice,share_wheat)
+
+```
+
+
+## Henan
+```{r}
+hn <- readxl::read_xls("~/Documents/GitHub/ChinaAg/Xiaolan/raw data/citydata/henan/hn.xls")
+names(hn) <- c("index", "region", "year", "value")
+hn$year <- as.numeric(hn$year)
+hn$value <- as.numeric(hn$value)
+
+
+#merge with missing find
+hnmiss <- readxl::read_xls("~/Documents/GitHub/ChinaAg/Xiaolan/raw data/citydata/henan/hnmiss.xls")
+names(hnmiss) <- c("index", "region", "year", "value")
+hnmiss$year <- as.numeric(hnmiss$year)
+hnmiss$value <- as.numeric(hnmiss$value)
+
+##join missing
+hn <- hn %>% left_join(hnmiss, by = c("index", "region", "year"), suffix = c("_A", "_B")) %>%
+  mutate(value = coalesce(value_A, value_B)) %>%
+  select(index, region, year, value)
+
+
+##wide format
+hn <- hn %>% tidyr::spread(key = index, value)
+names(hn) <- c("region", "year", "acre_total", "acre_soy","acre_wheat",
+               "acre_oil", "acre_corn", "acre_fruit", "acre_rice", "acre_vege")
+hn$province <- rep("Henan", times = 270)
+
+
+##translate regions: attention to order!
+unique(hn$region)
+trans <- c("sanmenxia", "xinyang", "nanyang", "zhoukou", "shangqiu","anyang",
+           "pingdingshan","kaifeng","xinxiang","luoyang","jiyuan","luohe","puyang",
+           "jiaozuo","xuchang","zhengzhou","zhumadian","hebi")
+hn$city <- rep(trans, each = 15)
+
+#compute acreage share
+hn <- hn %>% mutate(share_soy = acre_soy/acre_total,
+                    share_wheat = acre_wheat/acre_total,
+                    share_oil = acre_oil/acre_total,
+                    share_corn = acre_corn/acre_total,
+                    share_fruit = acre_fruit/acre_total,
+                    share_rice = acre_rice/acre_total,
+                    share_vege = acre_vege/acre_total)
+
+hn <- hn %>% select(province, city, year, region, acre_total,
+                      acre_corn,acre_soy,share_corn,share_soy,
+                      acre_rice,acre_wheat,share_rice,share_wheat)
+
+```
+
+
+
+## Shandong
+```{r}
+sd <- readxl::read_xls("~/Documents/GitHub/ChinaAg/Xiaolan/raw data/citydata/shandong/sd.xls")
+names(sd) <- c("index", "region", "year", "value")
+sd$year <- as.numeric(sd$year)
+sd$value <- as.numeric(sd$value)
+
+
+##wide format
+sd <- sd %>% tidyr::spread(key = index, value)
+names(sd) <- c("region", "year","acre_total_ha", "acre_soy_ha","acre_wheat_ha",
+               "acre_oil_ha", "acre_corn_ha", "acre_fruit_ha", "acre_rice_ha", "acre_vege_ha")
+sd$province <- rep("Shandong", times = 255)
+
+
+##translate regions: attention to order!
+unique(sd$region)
+trans <- c("dongying", "linyi", "weihai", "dezhou", "rizhao","zaozhuang",
+           "taian","jinan","jining","zibo","binzhou","weifang","yantai",
+           "liaocheng","laiwu","heze","qingdao")
+sd$city <- rep(trans, each = 15)
+
+#change unit to "千公顷"
+sd <- sd %>% mutate(acre_soy = acre_soy_ha/1000,
+                    acre_wheat = acre_wheat_ha/1000,
+                    acre_total = acre_total_ha/1000,
+                    acre_oil = acre_oil_ha/1000,
+                    acre_corn = acre_corn_ha/1000,
+                    acre_fruit = acre_fruit_ha/1000,
+                    acre_rice = acre_rice_ha/1000,
+                    acre_vege = acre_vege_ha/1000)
+
+#compute acreage share
+sd <- sd %>% mutate(share_soy = acre_soy/acre_total,
+                    share_wheat = acre_wheat/acre_total,
+                    share_oil = acre_oil/acre_total,
+                    share_corn = acre_corn/acre_total,
+                    share_fruit = acre_fruit/acre_total,
+                    share_rice = acre_rice/acre_total,
+                    share_vege = acre_vege/acre_total)
+
+sd <- sd %>% select(province, city, year, region, acre_total,
+                      acre_corn,acre_soy,share_corn,share_soy,
+                      acre_rice,acre_wheat,share_rice,share_wheat)
+```
+
+
+## Hebei
+```{r}
+hb <- readxl::read_xls("~/Documents/GitHub/ChinaAg/Xiaolan/raw data/citydata/hebei/hb.xls")
+hbyield <- readxl::read_xls("~/Documents/GitHub/ChinaAg/Xiaolan/raw data/citydata/hebei/hbyield.xls")
+
+names(hb) <- c("index", "region", "year", "value")
+hb$year <- as.numeric(hb$year)
+hb$value <- as.numeric(hb$value)
+hb <- hb %>% tidyr::spread(key = index, value)
+names(hb) <- c("region","year","acre_total","acre_soy","acre_oil","acre_corn",
+               "acre_vege")
+
+#compute rice and wheat acreage
+hb_old <- readxl::read_xls("~/Documents/GitHub/ChinaAg/Xiaolan/raw data/citydata/hebei/hb_old.xls")
+names(hb_old) <- c("index", "region", "year", "value")
+hb_old$year <- as.numeric(hb_old$year)
+hb_old$value <- as.numeric(hb_old$value)
+hb_old <- hb_old %>% tidyr::spread(key = index, value)
+names(hb_old) <- c("region","year","acre_total","prod_wheat","acre_oil",
+                   "prod_corn","prod_rice","acre_vege","acre_soy")
+
+hbyield <- readxl::read_xls("~/Documents/GitHub/ChinaAg/Xiaolan/raw data/citydata/hebei/hbyield.xls")
+names(hbyield) <- c("index", "region", "year", "value")
+hbyield$year <- as.numeric(hbyield$year)
+hbyield$value <- as.numeric(hbyield$value)
+hbyield <- hbyield %>% tidyr::spread(key = index, value)
+names(hbyield) <- c("region","year","acre_soy", "yield_wheat","yield_corn","yield_rice","acre_soy")
+
+yieldwr <- hbyield %>% select(year,yield_wheat,yield_rice)
+
+hb_old_wr <- hb_old %>% left_join(yieldwr, by = "year") %>% mutate(acre_wheat = prod_wheat/yield_wheat,acre_rice = prod_rice/yield_rice) %>% 
+  select(region, year,acre_wheat,acre_rice)
+
+
+#join with hb data
+hb <- hb %>% left_join(hb_old_wr, by = c("region", "year") )
+
+#compute acre share:
+hb <- hb %>%
+  mutate(
+    share_corn = acre_corn/acre_total,
+    share_soy = acre_soy/acre_total,
+    share_oil = acre_oil/acre_total,
+    share_vege = acre_vege/acre_total,
+    share_wheat = acre_wheat/acre_total,
+    share_rice = acre_rice/acre_total
+  )
+
+
+##translate city names
+unique(hb$region)
+trans <- c("baoding", "tangshan", "langfang", "zhangjiakou", "chengde","cangzhou",
+           "shijiazhuang","qinhuangdao","hengshui","xingtai","handan")
+hb$city <- rep(trans, each = 15)
+hb$province <- rep("Hebei", times = 165)
+
+hb <- hb %>% select(province, city, year, region, acre_total,
+                      acre_corn,acre_soy,share_corn,share_soy,
+                    acre_rice,acre_wheat,share_rice,share_wheat)
+
+```
+
+
+
+## check data validity
+### HLJ
+```{r}
+#corn
+ggplot(data = hlj, aes(x = year, y = share_corn, color = city))+
+  geom_line() 
+ggplot(data = hlj, aes(x = as.factor(year), y = share_corn, color = city))+
+  geom_line(group = 1) +
+  facet_wrap(~city) 
+
+#soybean
+ggplot(data = hlj, aes(x = year, y = share_soy, color = city))+
+  geom_line()  
+ggplot(data = hlj, aes(x = as.factor(year), y = share_soy, color = city))+
+  geom_line(group = 1) +
+  facet_wrap(~city)
+
+#rice
+ggplot(data = hlj, aes(x = year, y = share_rice, color = city))+
+  geom_line() 
+ggplot(data = hlj, aes(x = as.factor(year), y = share_rice, color = city))+
+  geom_line(group = 1) +
+  facet_wrap(~city) 
+
+#wheat
+ggplot(data = hlj, aes(x = year, y = share_wheat, color = city))+
+  geom_line() 
+ggplot(data = hlj, aes(x = as.factor(year), y = share_wheat, color = city))+
+  geom_line(group = 1) +
+  facet_wrap(~city) 
+```
+
+
+### NMG
+```{r}
+##without rice and wheat
+nmg %>% group_by(city) %>% summarise(corn_acre = mean(acre_corn),
+                                     soy_acre = mean(acre_soy)) %>% arrange(corn_acre)
+
+#corn
+ggplot(data = nmg, aes(x = year, y = share_corn, color = city))+
+  geom_line() 
+
+ggplot(data = nmg, aes(x = as.factor(year), y = share_corn, color = city))+
+  geom_line(group = 1) +
+  facet_wrap(~city) 
+
+#soy
+ggplot(data = nmg, aes(x = year, y = share_soy, color = city))+
+  geom_line()  
+ggplot(data = nmg, aes(x = as.factor(year), y = share_soy, color = city))+
+  geom_line(group = 1) +
+  facet_wrap(~city)
+```
+
+### JL, no wheat
+```{r}
+jl %>% group_by(city) %>% summarise(corn_acre = mean(acre_corn),
+                                    soy_acre = mean(acre_soy)) %>% arrange(corn_acre)
+
+#corn
+ggplot(data = jl, aes(x = as.factor(year), y = share_corn, color = city))+
+  geom_line(group = 1) +
+  facet_wrap(~city) 
+
+#soy
+ggplot(data = jl, aes(x = as.factor(year), y = share_soy, color = city))+
+  geom_line(group = 1) +
+  facet_wrap(~city) 
+
+#rice
+ggplot(data = jl, aes(x = as.factor(year), y = share_rice, color = city))+
+  geom_line(group = 1) +
+  facet_wrap(~city) 
+
+```
+
+### LN
+```{r}
+ln %>% group_by(city) %>% summarise(corn_acre = mean(acre_corn),
+                                    soy_acre = mean(acre_soy)) %>% arrange(corn_acre)
+#corn
+ggplot(data = ln, aes(x = as.factor(year), y = share_corn, color = city))+
+  geom_line(group = 1) +
+  facet_wrap(~city) 
+#soy
+ggplot(data = ln, aes(x = as.factor(year), y = share_soy, color = city))+
+  geom_line(group = 1) +
+  facet_wrap(~city) 
+
+#rice
+ggplot(data = ln, aes(x = as.factor(year), y = share_rice, color = city))+
+  geom_line(group = 1) +
+  facet_wrap(~city) 
+
+#wheat
+ggplot(data = ln, aes(x = as.factor(year), y = share_wheat, color = city))+
+  geom_line(group = 1) +
+  facet_wrap(~city) 
+```
+
+### HN
+```{r}
+hn %>% group_by(city) %>% summarise(corn_acre = mean(acre_corn),
+                                    soy_acre = mean(acre_soy)) %>% arrange(corn_acre)
+
+ggplot(data = hn, aes(x = as.factor(year), y = share_corn, color = city))+
+  geom_line(group = 1) +
+  facet_wrap(~city) #corn
+
+ggplot(data = hn, aes(x = as.factor(year), y = share_soy, color = city))+
+  geom_line(group = 1) +
+  facet_wrap(~city) #soybean
+
+ggplot(data = hn, aes(x = as.factor(year), y = share_rice, color = city))+
+  geom_line(group = 1) +
+  facet_wrap(~city) #rice
+
+ggplot(data = hn, aes(x = as.factor(year), y = share_wheat, color = city))+
+  geom_line(group = 1) +
+  facet_wrap(~city) #wheat
+
+
+
+```
+
+### SD
+```{r}
+sd %>% group_by(city) %>% summarise(corn_acre = mean(acre_corn),
+                                    soy_acre = mean(acre_soy)) %>% arrange(corn_acre)
+
+
+ggplot(data = sd, aes(x = as.factor(year), y = share_corn, color = city))+
+  geom_line(group = 1) +
+  facet_wrap(~city) #corn
+
+ggplot(data = sd, aes(x = as.factor(year), y = share_soy, color = city))+
+  geom_line(group = 1) +
+  facet_wrap(~city) #soybean
+
+ggplot(data = sd, aes(x = as.factor(year), y = share_rice, color = city))+
+  geom_line(group = 1) +
+  facet_wrap(~city) #rice
+
+ggplot(data = sd, aes(x = as.factor(year), y = share_wheat, color = city))+
+  geom_line(group = 1) +
+  facet_wrap(~city) #wheat
+```
+
+### HB
+```{r}
+hb %>% group_by(city) %>% summarise(corn_acre = mean(acre_corn),
+                                    soy_acre = mean(acre_soy, na.rm = T)) %>% arrange(corn_acre)
+
+ggplot(data = hb, aes(x = as.factor(year), y = share_corn, color = city))+
+  geom_line(group = 1) +
+  facet_wrap(~city) #corn
+
+ggplot(data = hb, aes(x = as.factor(year), y = share_soy, color = city))+
+  geom_line(group = 1) +
+  facet_wrap(~city) #soybean
+ggplot(data = hb, aes(x = as.factor(year), y = share_rice, color = city))+
+  geom_line(group = 1) +
+  facet_wrap(~city) #rice
+
+ggplot(data = hb, aes(x = as.factor(year), y = share_wheat, color = city))+
+  geom_line(group = 1) +
+  facet_wrap(~city) #wheat
+```
+
+
+
+## join data
+```{r}
+library(plyr)
+
+city_acreage_allcrops <- rbind.fill(hlj,nmg,jl,ln,sd,hn,hb)  %>% as.data.frame()
+
+write.csv(city_acreage_allcrops, "~/Documents/GitHub/ChinaAg/Xiaolan/data clean/city_acreage_allcrops.csv")
+```
+
+
+## mutate data for arcgis
+```{r}
+#match city name in arcmap
+city_arc <- city_acreage_allcrops %>% 
+  mutate(name_city = ifelse(province == "Heilongjiang"|province == "Liaoning", paste0(region,"市"),region )) %>% 
+  mutate(name_city1 = ifelse(name_city == "保定市（含定州市）", "保定市", name_city)) %>% 
+  mutate(name_city2 = ifelse(name_city1 == "石家庄市（含辛集市）", "石家庄市", name_city1)) %>% 
+  mutate(name_city3 = ifelse(name_city2 == "大兴安岭市", "大兴安岭地区", name_city2)) %>% 
+  filter(city != "laiwu") %>% select(-name_city, -name_city1, -name_city2) %>% as.data.frame()
+  
+
+#unique(city_arc$name_city3)
+
+#city_arc %>% filter(province == "Shandong") %>% distinct(name_city3)
+
+
+#compute crops averages over 2017-2021
+ave_corn <- city_arc %>% filter(year > 2016) %>% group_by(city) %>% 
+    dplyr::summarise(corn_ave = mean(acre_corn, na.rm = TRUE)) 
+
+ave_soy  <- city_arc %>% filter(year > 2016) %>% group_by(city) %>% 
+  dplyr::summarise(soy_ave = mean(acre_soy, na.rm = TRUE)) 
+
+ave_rice <- city_arc %>% filter(year > 2016) %>% group_by(city) %>% 
+  dplyr::summarise(rice_ave = mean(acre_rice, na.rm = TRUE)) 
+
+ave_wheat <- city_arc %>% filter(year > 2016) %>% group_by(city) %>% 
+  dplyr::summarise(wheat_ave = mean(acre_wheat, na.rm = TRUE))
+
+ave_corn %>% dplyr::left_join(ave_soy, by = "city") %>% 
+  dplyr::left_join(ave_rice, by = "city") %>% 
+  dplyr::left_join(ave_wheat, by = "city") %>% 
+  left_join(city_arc %>% filter(year == 2021), by = "city")
+
+
+
+```
+
+
